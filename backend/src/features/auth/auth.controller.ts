@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
+import { env } from "../../config/env";
 
 export class AuthController {
   /**
@@ -8,8 +9,14 @@ export class AuthController {
    */
   static async getGitHubSignInUrl(req: Request, res: Response): Promise<void> {
     try {
-      const callbackUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/callback`;
+      console.log("📝 /github/signin endpoint called");
+      // Supabase redirects back to `redirectTo` after OAuth.
+      // Our frontend then reads/exchanges the OAuth code on `/callback`.
+      const callbackUrl = `${env.FRONTEND_URL}/callback`;
+      console.log("🔗 Using redirectTo URL:", callbackUrl);
+      
       const url = await AuthService.getGitHubSignInUrl(callbackUrl);
+      console.log("✅ Got GitHub URL:", url.substring(0, 50) + "...");
 
       res.json({
         success: true,
@@ -20,6 +27,7 @@ export class AuthController {
         },
       });
     } catch (error) {
+      console.error("❌ Error in /github/signin:", error);
       res.status(400).json({
         success: false,
         error: error instanceof Error ? error.message : "Failed to get GitHub sign-in URL",

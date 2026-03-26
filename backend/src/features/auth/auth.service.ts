@@ -1,4 +1,4 @@
-import { supabase } from "../../config/supabase";
+import { createAdminSupabase } from "../../config/supabase";
 import { SessionData, AuthUser } from "./auth.types";
 
 export class AuthService {
@@ -7,6 +7,7 @@ export class AuthService {
    * Frontend uses this to get the OAuth redirect URL
    */
   static async getGitHubSignInUrl(redirectUrl: string): Promise<string> {
+    const supabase = createAdminSupabase();
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "github",
@@ -34,6 +35,7 @@ export class AuthService {
    * Exchange GitHub code for session
    */
   static async signInWithGitHubCode(code: string): Promise<SessionData> {
+    const supabase = createAdminSupabase();
     try {
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
@@ -62,6 +64,7 @@ export class AuthService {
    * Exchange refresh token for new access token
    */
   static async refreshSession(refreshToken: string): Promise<SessionData> {
+    const supabase = createAdminSupabase();
     try {
       const { data, error } = await supabase.auth.refreshSession({
         refresh_token: refreshToken,
@@ -92,6 +95,7 @@ export class AuthService {
    * Get user by access token
    */
   static async getUserByAccessToken(accessToken: string): Promise<AuthUser> {
+    const supabase = createAdminSupabase();
     try {
       const { data, error } = await supabase.auth.getUser(accessToken);
 
@@ -113,6 +117,7 @@ export class AuthService {
    * Sign out user (invalidate refresh token)
    */
   static async signOut(accessToken: string): Promise<void> {
+    const supabase = createAdminSupabase();
     try {
       const { error } = await supabase.auth.signOut({
         scope: "global",

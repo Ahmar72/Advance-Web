@@ -1,62 +1,58 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        // Supabase OAuth callback usually provides `code` (PKCE flow).
+        // If code exists, exchange it for a session; otherwise fallback to getSession().
         const code = searchParams.get("code");
+        const { data, error: sessionError } = code
+          ? await supabase.auth.exchangeCodeForSession(code)
+          : await supabase.auth.getSession();
 
-        if (!code) {
-          setError("No authorization code received from GitHub");
-          return;
+        const session = data.session;
+
+        if (sessionError) {
+          throw new Error(sessionError.message);
         }
 
-        startTransition(async () => {
-          // Exchange code for session
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/github/callback`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ code }),
-            }
-          );
+        if (!session || !session.user) {
+          throw new Error("No session returned from Supabase");
+        }
 
-          const data = await response.json();
+        // Store session info
+        localStorage.setItem("accessToken", session.access_token);
+        localStorage.setItem("refreshToken", session.refresh_token || "");
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            id: session.user.id,
+            email: session.user.email,
+            user_metadata: session.user.user_metadata,
+          })
+        );
 
-          if (!data.success) {
-            setError(data.error || "Authentication failed");
-            return;
-          }
+        // Notify AuthProvider so it reloads session from localStorage.
+        window.dispatchEvent(new Event("auth-session-updated"));
 
-          // Store tokens and user info
-          const { access_token, refresh_token, user } = data.data;
-
-          localStorage.setItem("accessToken", access_token);
-          localStorage.setItem("refreshToken", refresh_token);
-          localStorage.setItem("user", JSON.stringify(user));
-
-          // Redirect to home
-          router.replace("/");
-        });
+        // Redirect to home
+        router.replace("/");
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
+        setError(err instanceof Error ? err.message : "Authentication failed");
       }
     };
 
     handleCallback();
-  }, [searchParams, router]);
+  }, [router, searchParams]);
 
   return (
     <div className="space-y-8">

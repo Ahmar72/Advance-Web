@@ -1,0 +1,401 @@
+'use client';
+
+import { useAuth } from '@/lib/AuthContext';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+type HomeAd = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+  is_featured: boolean;
+  category?: { name: string };
+  city?: { name: string };
+  package?: { name: string; price: number };
+  media?: Array<{ thumbnail_url: string | null; original_url: string }>;
+  seller?: { full_name: string | null; email: string };
+};
+
+type LearningQuestion = {
+  question: string;
+  answer: string;
+  topic: string | null;
+  difficulty: string;
+};
+
+export default function HomePage() {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  const [featuredAds, setFeaturedAds] = useState<HomeAd[]>([]);
+  const [recentAds, setRecentAds] = useState<HomeAd[]>([]);
+  const [learningQuestion, setLearningQuestion] = useState<LearningQuestion | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
+
+  useEffect(() => {
+    const fetchHomeAds = async () => {
+      try {
+        const [featuredRes, recentRes] = await Promise.all([
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads?sort=rank&limit=30&page=1`
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads?sort=newest&limit=6&page=1`
+          ),
+        ]);
+
+        if (featuredRes.ok) {
+          const featuredJson = await featuredRes.json();
+          const ads = (featuredJson.data?.data || []) as HomeAd[];
+          setFeaturedAds(ads.filter((a) => a.is_featured).slice(0, 6));
+        }
+
+        if (recentRes.ok) {
+          const recentJson = await recentRes.json();
+          const ads = (recentJson.data?.data || []) as HomeAd[];
+          setRecentAds(ads.slice(0, 6));
+        }
+      } catch {
+        // Keep home page usable even if ads fail.
+      }
+    };
+
+    const fetchLearningQuestion = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/questions/random`
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        setLearningQuestion(json.data as LearningQuestion);
+      } catch {
+        // Ignore widget failure.
+      }
+    };
+
+    fetchHomeAds();
+    fetchLearningQuestion();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
+      {/* Navigation */}
+      <nav className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="text-2xl font-bold bg-linear-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+            AdFlow Pro
+          </div>
+          <div className="flex gap-4 items-center">
+            <Link href="/explore" className="text-slate-300 hover:text-white transition">
+              Explore Ads
+            </Link>
+            <Link href="/packages" className="text-slate-300 hover:text-white transition">
+              Packages
+            </Link>
+            {user ? (
+              <>
+                <Link href="/dashboard" className="text-slate-300 hover:text-white transition">
+                  Dashboard
+                </Link>
+                <Link
+                  href="/create-ad"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
+                >
+                  Post Ad
+                </Link>
+              </>
+            ) : (
+              <Link
+                href="/signin"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <div className="max-w-7xl mx-auto px-4 py-24 text-center">
+        <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
+          Post Ads, Get Results Faster
+        </h1>
+        <p className="text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
+          Reach thousands of verified buyers with AdFlow Pro's trusted marketplace. Professional moderation, secure payments, and flexible packages.
+        </p>
+        <div className="flex gap-4 justify-center">
+          {user ? (
+            <>
+              <Link
+                href="/create-ad"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition"
+              >
+                Create Your Ad
+              </Link>
+              <Link
+                href="/explore"
+                className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-lg font-semibold transition"
+              >
+                Browse Listings
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/signin"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition"
+              >
+                Get Started Free
+              </Link>
+              <Link
+                href="/explore"
+                className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-lg font-semibold transition"
+              >
+                Browse Public Ads
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Key Features */}
+      <div className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-3 gap-8">
+        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+          <div className="text-4xl mb-4">🚀</div>
+          <h3 className="text-xl font-semibold text-white mb-3">Fast Publishing</h3>
+          <p className="text-slate-400">
+            Get your listing approved and live within hours through our professional moderation process.
+          </p>
+        </div>
+        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+          <div className="text-4xl mb-4">🔒</div>
+          <h3 className="text-xl font-semibold text-white mb-3">Secure Payments</h3>
+          <p className="text-slate-400">
+            Transparent payment verification and admin approval ensures trust and security for all users.
+          </p>
+        </div>
+        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+          <div className="text-4xl mb-4">📊</div>
+          <h3 className="text-xl font-semibold text-white mb-3">Smart Ranking</h3>
+          <p className="text-slate-400">
+            Premium packages and featured listings boost visibility. Newest and best ads appear first.
+          </p>
+        </div>
+      </div>
+
+      {/* Trust badges + Learning question */}
+      <div className="max-w-7xl mx-auto px-4 py-10">
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-lg">
+            <div className="text-white font-semibold">Verified Moderation</div>
+            <div className="text-slate-400 text-sm mt-2">
+              Ads go live only after review and payment verification.
+            </div>
+          </div>
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-lg">
+            <div className="text-white font-semibold">Secure Proof</div>
+            <div className="text-slate-400 text-sm mt-2">
+              Payment proof is verified by admins before publishing.
+            </div>
+          </div>
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-lg">
+            <div className="text-white font-semibold">Learning Question</div>
+            <div className="text-slate-400 text-sm mt-2">
+              {learningQuestion ? learningQuestion.question : 'Loading...'}
+            </div>
+            {learningQuestion ? (
+              <>
+                <button
+                  onClick={() => setShowAnswer((s) => !s)}
+                  className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition text-sm font-semibold"
+                >
+                  {showAnswer ? 'Hide answer' : 'Reveal answer'}
+                </button>
+                {showAnswer ? (
+                  <div className="mt-3 text-slate-300 text-sm leading-relaxed">
+                    <div className="text-slate-400 text-xs">
+                      Topic: {learningQuestion.topic || 'General'} • Difficulty:{' '}
+                      {learningQuestion.difficulty}
+                    </div>
+                    <div className="mt-2">{learningQuestion.answer}</div>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Featured + Recent ads */}
+      <div className="max-w-7xl mx-auto px-4 py-10">
+        <div className="grid lg:grid-cols-2 gap-8">
+          <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6">
+            <h2 className="text-2xl font-bold text-white">Featured Listings</h2>
+            <div className="text-slate-400 text-sm mt-1">
+              Ranked and featured based on package strength + freshness.
+            </div>
+            <div className="mt-6 space-y-4">
+              {featuredAds.length === 0 ? (
+                <div className="text-slate-400 text-sm">No featured ads right now.</div>
+              ) : (
+                featuredAds.map((ad) => (
+                  <Link
+                    key={ad.id}
+                    href={`/ads/${ad.id}`}
+                    className="block rounded-lg border border-slate-700 bg-slate-900/20 hover:border-blue-500 transition p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-white font-semibold line-clamp-1">
+                          {ad.title}
+                        </div>
+                        <div className="text-slate-400 text-sm mt-1">
+                          {ad.category?.name || 'Category'} • {ad.city?.name || 'City'}
+                        </div>
+                      </div>
+                      <div className="text-blue-300 font-semibold whitespace-nowrap">
+                        {ad.package?.price != null ? `Rs ${Number(ad.package.price).toFixed(2)}` : ''}
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6">
+            <h2 className="text-2xl font-bold text-white">Recent Listings</h2>
+            <div className="text-slate-400 text-sm mt-1">Latest published ads</div>
+            <div className="mt-6 space-y-4">
+              {recentAds.length === 0 ? (
+                <div className="text-slate-400 text-sm">No recent ads right now.</div>
+              ) : (
+                recentAds.map((ad) => (
+                  <Link
+                    key={ad.id}
+                    href={`/ads/${ad.id}`}
+                    className="block rounded-lg border border-slate-700 bg-slate-900/20 hover:border-blue-500 transition p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-white font-semibold line-clamp-1">
+                          {ad.title}
+                        </div>
+                        <div className="text-slate-400 text-sm mt-1">
+                          {ad.category?.name || 'Category'} • {ad.city?.name || 'City'}
+                        </div>
+                      </div>
+                      <div className="text-slate-300 text-xs whitespace-nowrap">
+                        {ad.created_at ? new Date(ad.created_at).toLocaleDateString() : ''}
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Packages Preview */}
+      <div className="max-w-7xl mx-auto px-4 py-16">
+        <h2 className="text-3xl font-bold text-white mb-12 text-center">
+          Simple, Transparent Pricing
+        </h2>
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Basic Package */}
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+            <h3 className="text-2xl font-bold text-white mb-4">Basic</h3>
+            <div className="text-3xl font-bold text-white mb-6">Budget</div>
+            <ul className="space-y-3 text-slate-400 mb-8">
+              <li className="flex gap-2">
+                <span>✓</span> 7 days visibility
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span> Category listing
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span> Basic ranking
+              </li>
+            </ul>
+            <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition">
+              Choose Plan
+            </button>
+          </div>
+
+          {/* Standard Package (Featured) */}
+          <div className="bg-linear-to-b from-blue-600 to-blue-700 p-8 rounded-lg border-2 border-blue-400 relative">
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-blue-400 text-blue-900 px-4 py-1 rounded-full text-sm font-bold">
+              POPULAR
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-4">Standard</h3>
+            <div className="text-3xl font-bold text-white mb-6">Recommended</div>
+            <ul className="space-y-3 text-blue-100 mb-8">
+              <li className="flex gap-2">
+                <span>✓</span> 15 days visibility
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span> Homepage priority
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span> Enhanced ranking
+              </li>
+            </ul>
+            <button className="w-full bg-white hover:bg-blue-50 text-blue-600 py-2 rounded font-semibold transition">
+              Choose Plan
+            </button>
+          </div>
+
+          {/* Premium Package */}
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+            <h3 className="text-2xl font-bold text-white mb-4">Premium</h3>
+            <div className="text-3xl font-bold text-white mb-6">Max Reach</div>
+            <ul className="space-y-3 text-slate-400 mb-8">
+              <li className="flex gap-2">
+                <span>✓</span> 30 days visibility
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span> Featured + Auto-refresh
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span> Top ranking always
+              </li>
+            </ul>
+            <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition">
+              Choose Plan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="bg-linear-to-r from-blue-600 to-blue-700 py-16 mt-16">
+        <div className="max-w-3xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Ready to List Your Items?
+          </h2>
+          <p className="text-blue-100 mb-8 text-lg">
+            Join thousands of successful sellers. Start post your first ad today.
+          </p>
+          <Link
+            href={user ? '/create-ad' : '/signin'}
+            className="inline-block bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition"
+          >
+            Post Your First Ad
+          </Link>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-700 bg-slate-900/50 py-8 mt-16">
+        <div className="max-w-7xl mx-auto px-4 text-center text-slate-400">
+          <p>&copy; 2026 AdFlow Pro. All rights reserved.</p>
+        </div>
+      </footer>
+    </div>
+  );
+}

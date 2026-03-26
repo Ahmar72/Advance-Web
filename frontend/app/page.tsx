@@ -50,12 +50,12 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-black dark:to-zinc-950">
+    <div className="flex min-h-screen flex-col bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-black dark:to-zinc-950">
       {/* Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center">
               <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
@@ -118,7 +118,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-500/20 dark:to-purple-500/20 border border-blue-200 dark:border-blue-800 p-4 space-y-3">
+                <div className="rounded-xl bg-linear-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-500/20 dark:to-purple-500/20 border border-blue-200 dark:border-blue-800 p-4 space-y-3">
                   <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 uppercase tracking-wide">
                     Logged In with
                   </p>

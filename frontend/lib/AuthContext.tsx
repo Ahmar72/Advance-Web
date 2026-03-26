@@ -1,12 +1,16 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useEffect, useState } from "react";
+import { createContext, useContext, ReactNode, useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 
 export interface User {
   id: string;
   email: string;
   user_metadata?: Record<string, any>;
+  full_name?: string;
+  is_verified_seller?: boolean;
+  avatar_url?: string | null;
+  role?: 'client' | 'moderator' | 'admin' | 'super_admin';
 }
 
 interface AuthContextType {
@@ -27,45 +31,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
 
+  const loadSession = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const storedToken = localStorage.getItem("accessToken");
+      const storedRefreshToken = localStorage.getItem("refreshToken");
+      const storedUser = localStorage.getItem("user");
+
+      if (storedToken && storedUser) {
+        setAccessToken(storedToken);
+        setRefreshToken(storedRefreshToken);
+        setUser(JSON.parse(storedUser));
+        return;
+      }
+
+      // If anything is missing, treat as signed out.
+      setAccessToken(null);
+      setRefreshToken(null);
+      setUser(null);
+    } catch (error) {
+      console.error("Failed to load session:", error);
+      // Clear corrupted session data
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      setAccessToken(null);
+      setRefreshToken(null);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Load session from localStorage on mount
   useEffect(() => {
-    const loadSession = async () => {
-      try {
-        const storedToken = localStorage.getItem("accessToken");
-        const storedRefreshToken = localStorage.getItem("refreshToken");
-        const storedUser = localStorage.getItem("user");
-
-        if (storedToken && storedUser) {
-          setAccessToken(storedToken);
-          setRefreshToken(storedRefreshToken);
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error("Failed to load session:", error);
-        // Clear corrupted session data
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadSession();
-  }, []);
+  }, [loadSession]);
+
+  // Re-load session when the OAuth callback updates localStorage.
+  useEffect(() => {
+    const onSessionUpdated = () => {
+      loadSession();
+    };
+    window.addEventListener("auth-session-updated", onSessionUpdated);
+
+    // Also listen for storage events from other tabs/windows.
+    const onStorage = () => {
+      loadSession();
+    };
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      window.removeEventListener("auth-session-updated", onSessionUpdated);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [loadSession]);
 
   const signInWithGitHub = async () => {
     try {
       setIsLoading(true);
+      console.log("Starting GitHub sign-in...");
+      console.log("Backend URL:", process.env.NEXT_PUBLIC_BACKEND_URL);
 
       // Get GitHub sign-in URL from backend
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/github/signin`);
+      console.log("Backend response status:", response.status);
+      
       const data = await response.json();
+      console.log("Backend response data:", data);
 
       if (!data.success) {
-        throw new Error(data.error);
+        throw new Error(data.error || "Failed to get GitHub URL");
       }
 
+      if (!data.data?.url) {
+        throw new Error("No GitHub URL in response");
+      }
+
+      console.log("Redirecting to GitHub:", data.data.url);
       // Redirect to GitHub OAuth
       window.location.href = data.data.url;
     } catch (error) {

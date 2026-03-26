@@ -70,3 +70,39 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     next();
   }
 };
+
+/**
+ * Role-based access control middleware
+ * Requires requireAuth to be called first
+ */
+export const requireRole = (allowedRoles: string[]) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userRole = req.user?.role;
+
+      if (!userRole) {
+        res.status(401).json({
+          success: false,
+          error: "User role not found",
+        });
+        return;
+      }
+
+      if (!allowedRoles.includes(userRole)) {
+        res.status(403).json({
+          success: false,
+          error: `Access denied. Required roles: ${allowedRoles.join(", ")}. Your role: ${userRole}`,
+        });
+        return;
+      }
+
+      next();
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: "Role verification failed",
+      });
+    }
+  };
+};
+
