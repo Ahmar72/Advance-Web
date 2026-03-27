@@ -18,6 +18,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error('[AUTH] Missing or invalid auth header:', authHeader);
       res.status(401).json({
         success: false,
         error: "Missing or invalid authorization header",
@@ -26,19 +27,23 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     }
 
     const token = authHeader.slice(7); // Remove "Bearer " prefix
+    console.log('[AUTH] Validating token:', token.substring(0, 20) + '...');
 
     try {
       const user = await AuthService.getUserByAccessToken(token);
+      console.log('[AUTH] Token valid, user:', user.id);
       req.user = user;
       req.token = token;
       next();
     } catch (error) {
+      console.error('[AUTH] Token validation failed:', error instanceof Error ? error.message : error);
       res.status(401).json({
         success: false,
         error: "Invalid or expired token",
       });
     }
   } catch (error) {
+    console.error('[AUTH] Auth middleware error:', error);
     res.status(500).json({
       success: false,
       error: "Authentication check failed",

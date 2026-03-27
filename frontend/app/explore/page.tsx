@@ -141,7 +141,7 @@ export default function ExplorePage() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
       {/* Header */}
       <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-6">

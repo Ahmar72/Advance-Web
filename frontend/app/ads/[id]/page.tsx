@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 
 type AdMedia = {
   original_url: string;
@@ -24,7 +25,9 @@ type AdDetail = {
   media: AdMedia[];
 };
 
-export default function AdDetailPage({ params }: { params: { id: string } }) {
+export default function AdDetailPage() {
+  const params = useParams<{ id: string }>();
+  const adId = params.id;
   const [ad, setAd] = useState<AdDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export default function AdDetailPage({ params }: { params: { id: string } }) {
         setError(null);
 
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${params.id}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${adId}`
         );
         if (!res.ok) {
           throw new Error(`Failed to load ad: ${res.status}`);
@@ -50,12 +53,13 @@ export default function AdDetailPage({ params }: { params: { id: string } }) {
         setLoading(false);
       }
     };
-
-    fetchAd();
-  }, [params.id]);
+    if (adId) {
+      fetchAd();
+    }
+  }, [adId]);
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
       <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-6 flex items-center gap-4">
           <Link

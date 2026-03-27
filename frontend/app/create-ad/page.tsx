@@ -203,14 +203,18 @@ export default function CreateAdPage() {
           `Database options are not loaded yet.\n\n${dbOptionsError ? `Backend error: ${dbOptionsError}\n\n` : ''}Run 'backend/src/db/001_init_schema.sql' and 'backend/src/db/002_seed_dummy_data.sql' in Supabase SQL Editor (same project as your backend), then refresh and try again.`
         );
       }
-      // Step 1: Create ad draft
-      const adResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/client/ads`,
-        {
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || apiUrl;
+      let accessToken = localStorage.getItem('accessToken');
+      const refreshToken = localStorage.getItem('refreshToken');
+
+      const createAdRequest = async (token: string) => {
+        return fetch(`${apiUrl}/api/v1/ads`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             title: formData.title,
@@ -219,8 +223,51 @@ export default function CreateAdPage() {
             city_id: formData.city_id,
             media_urls: formData.media_urls.filter((url) => url.trim()),
           }),
+        });
+      };
+
+      const refreshSession = async () => {
+        if (!refreshToken) return null;
+
+        const res = await fetch(`${backendUrl}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken }),
+        });
+
+        if (!res.ok) return null;
+
+        const { data: session } = await res.json();
+        if (!session?.access_token) return null;
+
+        localStorage.setItem('accessToken', session.access_token);
+        if (session.refresh_token) {
+          localStorage.setItem('refreshToken', session.refresh_token);
         }
-      );
+        if (session.user) {
+          localStorage.setItem('user', JSON.stringify(session.user));
+        }
+        window.dispatchEvent(new Event('auth-session-updated'));
+        return session.access_token as string;
+      };
+
+      // Step 1: Create ad draft (with 401 → refresh → retry)
+      if (!accessToken) {
+        accessToken = (await refreshSession()) || undefined;
+      }
+
+      let adResponse = await createAdRequest(accessToken || '');
+
+      if (adResponse.status === 401) {
+        const newToken = await refreshSession();
+        if (!newToken) {
+          throw new Error('Session expired. Please sign in again.');
+        }
+        accessToken = newToken;
+        adResponse = await createAdRequest(accessToken);
+      }
 
       if (!adResponse.ok) {
         throw new Error('Failed to create ad');
@@ -228,14 +275,14 @@ export default function CreateAdPage() {
 
       const { data: ad } = await adResponse.json();
 
-      // Step 2: Select package and submit
+      // Step 2: Select package and submit (reuse possibly refreshed token)
       const submitResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${ad.id}/select-package`,
+        `${apiUrl}/api/v1/ads/${ad.id}/select-package`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ package_id: selectedPackage }),
         }
@@ -272,7 +319,7 @@ export default function CreateAdPage() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
       {/* Header */}
       <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 py-6">

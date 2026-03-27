@@ -3,10 +3,12 @@ import { z } from 'zod';
 export const createAdSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(200),
   description: z.string().min(20, 'Description must be at least 20 characters').max(5000),
-  category_id: z.string().uuid('Invalid category ID'),
-  city_id: z.string().uuid('Invalid city ID'),
+  // Allow any non-empty string IDs; backend/DB will enforce actual FK validity
+  category_id: z.string().min(1, 'Category is required'),
+  city_id: z.string().min(1, 'City is required'),
+  // Frontend may send YouTube links, http URLs, or other strings; only require non-empty
   media_urls: z
-    .array(z.string().url('Invalid URL format'))
+    .array(z.string().min(1, 'Media URL cannot be empty'))
     .min(1, 'At least one media URL is required')
     .max(10, 'Maximum 10 media URLs allowed'),
 });

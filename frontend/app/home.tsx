@@ -81,25 +81,41 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
       {/* Navigation */}
-      <nav className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+      <nav className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold bg-linear-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+          <div className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
             AdFlow Pro
           </div>
           <div className="flex gap-4 items-center">
-            <Link href="/explore" className="text-slate-300 hover:text-white transition">
+            <Link href="/explore" className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium">
               Explore Ads
             </Link>
-            <Link href="/packages" className="text-slate-300 hover:text-white transition">
+            <Link href="/packages" className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium">
               Packages
             </Link>
             {user ? (
               <>
-                <Link href="/dashboard" className="text-slate-300 hover:text-white transition">
+                <Link href="/dashboard" className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium">
                   Dashboard
                 </Link>
+                {user.role === 'moderator' && (
+                  <Link
+                    href="/moderator/queue"
+                    className="text-slate-300 hover:text-white transition"
+                  >
+                    Moderator
+                  </Link>
+                )}
+                {(user.role === 'admin' || user.role === 'super_admin') && (
+                  <Link
+                    href="/admin/dashboard"
+                    className="text-slate-300 hover:text-white transition"
+                  >
+                    Admin
+                  </Link>
+                )}
                 <Link
                   href="/create-ad"
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
@@ -110,7 +126,7 @@ export default function HomePage() {
             ) : (
               <Link
                 href="/signin"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition"
               >
                 Sign In
               </Link>
@@ -121,10 +137,10 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 py-24 text-center">
-        <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
+        <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 mb-6">
           Post Ads, Get Results Faster
         </h1>
-        <p className="text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
+        <p className="text-lg md:text-xl text-zinc-600 mb-8 max-w-2xl mx-auto">
           Reach thousands of verified buyers with AdFlow Pro's trusted marketplace. Professional moderation, secure payments, and flexible packages.
         </p>
         <div className="flex gap-4 justify-center">
@@ -132,13 +148,13 @@ export default function HomePage() {
             <>
               <Link
                 href="/create-ad"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg text-sm md:text-base font-semibold shadow-sm transition"
               >
                 Create Your Ad
               </Link>
               <Link
                 href="/explore"
-                className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-lg font-semibold transition"
+                className="bg-white hover:bg-zinc-50 text-zinc-800 px-8 py-3 rounded-lg text-sm md:text-base font-semibold border border-zinc-300 shadow-sm transition"
               >
                 Browse Listings
               </Link>
@@ -147,13 +163,13 @@ export default function HomePage() {
             <>
               <Link
                 href="/signin"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg text-sm md:text-base font-semibold shadow-sm transition"
               >
                 Get Started Free
               </Link>
               <Link
                 href="/explore"
-                className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-lg font-semibold transition"
+                className="bg-white hover:bg-zinc-50 text-zinc-800 px-8 py-3 rounded-lg text-sm md:text-base font-semibold border border-zinc-300 shadow-sm transition"
               >
                 Browse Public Ads
               </Link>
@@ -164,24 +180,24 @@ export default function HomePage() {
 
       {/* Key Features */}
       <div className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-3 gap-8">
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+        <div className="bg-white border border-zinc-200 p-8 rounded-2xl shadow-sm">
           <div className="text-4xl mb-4">🚀</div>
-          <h3 className="text-xl font-semibold text-white mb-3">Fast Publishing</h3>
-          <p className="text-slate-400">
+          <h3 className="text-lg font-semibold text-zinc-900 mb-3">Fast Publishing</h3>
+          <p className="text-sm text-zinc-600">
             Get your listing approved and live within hours through our professional moderation process.
           </p>
         </div>
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+        <div className="bg-white border border-zinc-200 p-8 rounded-2xl shadow-sm">
           <div className="text-4xl mb-4">🔒</div>
-          <h3 className="text-xl font-semibold text-white mb-3">Secure Payments</h3>
-          <p className="text-slate-400">
+          <h3 className="text-lg font-semibold text-zinc-900 mb-3">Secure Payments</h3>
+          <p className="text-sm text-zinc-600">
             Transparent payment verification and admin approval ensures trust and security for all users.
           </p>
         </div>
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-8 rounded-lg">
+        <div className="bg-white border border-zinc-200 p-8 rounded-2xl shadow-sm">
           <div className="text-4xl mb-4">📊</div>
-          <h3 className="text-xl font-semibold text-white mb-3">Smart Ranking</h3>
-          <p className="text-slate-400">
+          <h3 className="text-lg font-semibold text-zinc-900 mb-3">Smart Ranking</h3>
+          <p className="text-sm text-zinc-600">
             Premium packages and featured listings boost visibility. Newest and best ads appear first.
           </p>
         </div>
@@ -190,34 +206,34 @@ export default function HomePage() {
       {/* Trust badges + Learning question */}
       <div className="max-w-7xl mx-auto px-4 py-10">
         <div className="grid md:grid-cols-3 gap-6">
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-lg">
-            <div className="text-white font-semibold">Verified Moderation</div>
-            <div className="text-slate-400 text-sm mt-2">
+          <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
+            <div className="text-zinc-900 font-semibold text-sm">Verified Moderation</div>
+            <div className="text-zinc-600 text-sm mt-2">
               Ads go live only after review and payment verification.
             </div>
           </div>
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-lg">
-            <div className="text-white font-semibold">Secure Proof</div>
-            <div className="text-slate-400 text-sm mt-2">
+          <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
+            <div className="text-zinc-900 font-semibold text-sm">Secure Proof</div>
+            <div className="text-zinc-600 text-sm mt-2">
               Payment proof is verified by admins before publishing.
             </div>
           </div>
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 p-6 rounded-lg">
-            <div className="text-white font-semibold">Learning Question</div>
-            <div className="text-slate-400 text-sm mt-2">
+          <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
+            <div className="text-zinc-900 font-semibold text-sm">Learning Question</div>
+            <div className="text-zinc-600 text-sm mt-2">
               {learningQuestion ? learningQuestion.question : 'Loading...'}
             </div>
             {learningQuestion ? (
               <>
                 <button
                   onClick={() => setShowAnswer((s) => !s)}
-                  className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition text-sm font-semibold"
+                  className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-xs font-semibold shadow-sm"
                 >
                   {showAnswer ? 'Hide answer' : 'Reveal answer'}
                 </button>
                 {showAnswer ? (
-                  <div className="mt-3 text-slate-300 text-sm leading-relaxed">
-                    <div className="text-slate-400 text-xs">
+                  <div className="mt-3 text-zinc-700 text-sm leading-relaxed">
+                    <div className="text-zinc-500 text-xs">
                       Topic: {learningQuestion.topic || 'General'} • Difficulty:{' '}
                       {learningQuestion.difficulty}
                     </div>
@@ -233,31 +249,31 @@ export default function HomePage() {
       {/* Featured + Recent ads */}
       <div className="max-w-7xl mx-auto px-4 py-10">
         <div className="grid lg:grid-cols-2 gap-8">
-          <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6">
-            <h2 className="text-2xl font-bold text-white">Featured Listings</h2>
-            <div className="text-slate-400 text-sm mt-1">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-zinc-900">Featured Listings</h2>
+            <div className="text-zinc-500 text-sm mt-1">
               Ranked and featured based on package strength + freshness.
             </div>
             <div className="mt-6 space-y-4">
               {featuredAds.length === 0 ? (
-                <div className="text-slate-400 text-sm">No featured ads right now.</div>
+                <div className="text-zinc-500 text-sm">No featured ads right now.</div>
               ) : (
                 featuredAds.map((ad) => (
                   <Link
                     key={ad.id}
                     href={`/ads/${ad.id}`}
-                    className="block rounded-lg border border-slate-700 bg-slate-900/20 hover:border-blue-500 transition p-4"
+                    className="block rounded-xl border border-zinc-200 bg-white hover:border-blue-400 hover:shadow-sm transition p-4"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <div className="text-white font-semibold line-clamp-1">
+                        <div className="text-sm font-semibold text-zinc-900 line-clamp-1">
                           {ad.title}
                         </div>
-                        <div className="text-slate-400 text-sm mt-1">
+                        <div className="text-zinc-500 text-xs mt-1">
                           {ad.category?.name || 'Category'} • {ad.city?.name || 'City'}
                         </div>
                       </div>
-                      <div className="text-blue-300 font-semibold whitespace-nowrap">
+                      <div className="text-blue-600 text-sm font-semibold whitespace-nowrap">
                         {ad.package?.price != null ? `Rs ${Number(ad.package.price).toFixed(2)}` : ''}
                       </div>
                     </div>

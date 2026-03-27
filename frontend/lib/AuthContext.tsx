@@ -38,14 +38,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedRefreshToken = localStorage.getItem("refreshToken");
       const storedUser = localStorage.getItem("user");
 
-      if (storedToken && storedUser) {
-        setAccessToken(storedToken);
-        setRefreshToken(storedRefreshToken);
-        setUser(JSON.parse(storedUser));
-        return;
+      if (storedToken) {
+        try {
+          const meResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`,
+            {
+              headers: {
+                Authorization: `Bearer ${storedToken}`,
+              },
+            }
+          );
+
+          if (meResponse.ok) {
+            const json = await meResponse.json();
+            const meUser = json.data as User;
+
+            setAccessToken(storedToken);
+            setRefreshToken(storedRefreshToken);
+            setUser(meUser);
+
+            // Keep localStorage in sync with latest user profile (including role).
+            localStorage.setItem("user", JSON.stringify(meUser));
+            return;
+          }
+        } catch (error) {
+          console.error("Failed to fetch current user from backend:", error);
+        }
+
+        // Fallback: use whatever was stored locally if present.
+        if (storedUser) {
+          setAccessToken(storedToken);
+          setRefreshToken(storedRefreshToken);
+          setUser(JSON.parse(storedUser));
+          return;
+        }
       }
 
-      // If anything is missing, treat as signed out.
+      // If anything is missing or backend call failed without fallback, treat as signed out.
       setAccessToken(null);
       setRefreshToken(null);
       setUser(null);

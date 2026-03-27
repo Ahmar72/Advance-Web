@@ -98,6 +98,14 @@ SENDGRID_API_KEY=SG.your_api_key_here
 SENDGRID_FROM_EMAIL=noreply@adflowpro.com
 ```
 
+You can also use the provided example file at `backend/.env.example` as a starting point. Copy it into `backend/.env` and fill in the real values (especially the Supabase keys):
+
+```bash
+cd backend
+cp .env.example .env
+# then edit .env with your SUPABASE_URL and keys
+```
+
 ### Frontend `.env.local`
 
 ```bash

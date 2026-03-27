@@ -92,11 +92,11 @@ export default function SignInPage() {
       {/* Footer */}
       <p className="text-xs text-center text-zinc-600 dark:text-zinc-400 leading-relaxed">
         By signing in, you agree to our{" "}
-        <a href="#" className="underline hover:text-zinc-900 dark:hover:text-zinc-300">
+        <a href="/terms" className="underline hover:text-zinc-900 dark:hover:text-zinc-300">
           Terms of Service
         </a>{" "}
         and{" "}
-        <a href="#" className="underline hover:text-zinc-900 dark:hover:text-zinc-300">
+        <a href="/privacy" className="underline hover:text-zinc-900 dark:hover:text-zinc-300">
           Privacy Policy
         </a>
       </p>

@@ -1,6 +1,7 @@
 import { createAdminSupabase } from '../../config/supabase';
 import { Payment } from '../../shared/types/database.types';
 import { VerifyPaymentInput } from './payments.schema';
+import { adminService } from '../admin/admin.service';
 
 class PaymentsService {
   /**
@@ -67,7 +68,7 @@ class PaymentsService {
     const payment = await this.getPaymentById(input.payment_id);
 
     if (input.verified) {
-      // Approve: move ad to payment_verified, email notification
+      // Approve: mark payment verified and publish ad automatically
       const { data: updated, error } = await supabase
         .from('payments')
         .update({
@@ -81,7 +82,7 @@ class PaymentsService {
 
       if (error) throw new Error('Failed to verify payment');
 
-      // Update ad status
+      // Update ad status to payment_verified
       await supabase
         .from('ads')
         .update({ status: 'payment_verified' })
@@ -96,6 +97,10 @@ class PaymentsService {
         note: 'Payment verified by admin',
         changed_at: new Date().toISOString(),
       });
+
+      // Automatically publish the ad using admin publish logic
+      // This will set publish_at / expire_at based on the package
+      await adminService.publishAd(payment.ad_id);
 
       return updated;
     } else {

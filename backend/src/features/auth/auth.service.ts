@@ -103,9 +103,38 @@ export class AuthService {
         throw new Error(`Failed to fetch user: ${error?.message || "User not found"}`);
       }
 
+      // Ensure a corresponding row exists in the local users table
+      const fullName =
+        (data.user.user_metadata as any)?.full_name ||
+        (data.user.user_metadata as any)?.name ||
+        null;
+
+      await supabase
+        .from('users')
+        .upsert(
+          {
+            id: data.user.id,
+            email: data.user.email || '',
+            full_name: fullName,
+          },
+          { onConflict: 'id' }
+        );
+
+      const { data: dbUser, error: dbUserError } = await supabase
+        .from('users')
+        .select('id, email, full_name, role, status, created_at, updated_at')
+        .eq('id', data.user.id)
+        .single();
+
+      if (dbUserError || !dbUser) {
+        throw new Error(`Failed to load local user profile: ${dbUserError?.message || 'User not found'}`);
+      }
+
       return {
         id: data.user.id,
-        email: data.user.email || "",
+        email: data.user.email || '',
+        role: dbUser.role,
+        status: dbUser.status,
         user_metadata: data.user.user_metadata,
       };
     } catch (error) {

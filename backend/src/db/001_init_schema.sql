@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS packages (
 CREATE TABLE IF NOT EXISTS ads (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  package_id UUID NOT NULL REFERENCES packages(id),
+  package_id UUID REFERENCES packages(id),
   category_id UUID NOT NULL REFERENCES categories(id),
   city_id UUID NOT NULL REFERENCES cities(id),
   title TEXT NOT NULL,

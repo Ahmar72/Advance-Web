@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [ads, setAds] = useState<UserAd[]>([]);
   const [loadingAds, setLoadingAds] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -52,64 +53,112 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = window.confirm('Are you sure you want to delete this draft ad?');
+    if (!confirmDelete) return;
+
+    try {
+      setDeletingId(id);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Failed to delete ad');
+        return;
+      }
+
+      setAds((prev) => prev.filter((ad) => ad.id !== id));
+    } catch (error) {
+      console.error('Failed to delete ad:', error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (isLoading || !user) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+        <p className="text-base text-zinc-500">Loading your dashboard...</p>
+      </div>
+    );
   }
 
   const statusColors: Record<string, string> = {
-    draft: 'bg-slate-600',
-    under_review: 'bg-yellow-600',
-    payment_pending: 'bg-orange-600',
+    draft: 'bg-zinc-500',
+    under_review: 'bg-amber-500',
+    payment_pending: 'bg-orange-500',
     payment_verified: 'bg-cyan-600',
-    scheduled: 'bg-purple-600',
-    published: 'bg-green-600',
-    expired: 'bg-red-600',
-    rejected: 'bg-pink-600',
+    scheduled: 'bg-violet-500',
+    published: 'bg-emerald-600',
+    expired: 'bg-rose-500',
+    rejected: 'bg-pink-500',
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
       {/* Header */}
-      <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-white">My Listings</h1>
-              <p className="text-slate-400">Manage your ads and track their status</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-zinc-900">My Listings</h1>
+              <p className="text-sm text-zinc-500">Manage your ads and track their status</p>
             </div>
-            <Link
-              href="/create-ad"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition"
-            >
-              + Post New Ad
-            </Link>
+            <div className="flex items-center gap-3">
+              {(user.role === 'moderator' || user.role === 'admin' || user.role === 'super_admin') && (
+                <Link
+                  href="/moderator/queue"
+                  className="text-xs md:text-sm px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition"
+                >
+                  Moderator Queue
+                </Link>
+              )}
+              {(user.role === 'admin' || user.role === 'super_admin') && (
+                <Link
+                  href="/admin/dashboard"
+                  className="text-xs md:text-sm px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition"
+                >
+                  Admin Dashboard
+                </Link>
+              )}
+              <Link
+                href="/create-ad"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 md:px-6 py-2.5 rounded-lg text-sm md:text-base font-semibold shadow-sm transition"
+              >
+                + Post New Ad
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         {/* Stats */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <p className="text-slate-400 text-sm">Total Ads</p>
-            <p className="text-2xl font-bold text-white">{ads.length}</p>
+        <div className="grid md:grid-cols-4 gap-4">
+          <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <p className="text-xs font-medium text-zinc-500">Total Ads</p>
+            <p className="mt-1 text-2xl font-bold text-zinc-900">{ads.length}</p>
           </div>
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <p className="text-slate-400 text-sm">Published</p>
-            <p className="text-2xl font-bold text-green-400">
+          <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <p className="text-xs font-medium text-zinc-500">Published</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-600">
               {ads.filter((a) => a.status === 'published').length}
             </p>
           </div>
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <p className="text-slate-400 text-sm">Under Review</p>
-            <p className="text-2xl font-bold text-yellow-400">
+          <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <p className="text-xs font-medium text-zinc-500">Under Review</p>
+            <p className="mt-1 text-2xl font-bold text-amber-500">
               {ads.filter((a) => a.status === 'under_review').length}
             </p>
           </div>
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <p className="text-slate-400 text-sm">Drafts</p>
-            <p className="text-2xl font-bold text-slate-400">
+          <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <p className="text-xs font-medium text-zinc-500">Drafts</p>
+            <p className="mt-1 text-2xl font-bold text-zinc-600">
               {ads.filter((a) => a.status === 'draft').length}
             </p>
           </div>
@@ -117,36 +166,36 @@ export default function DashboardPage() {
 
         {/* Ads Table */}
         {loadingAds ? (
-          <div className="text-center text-slate-400 py-12">Loading your ads...</div>
+          <div className="text-center text-zinc-500 py-12 text-sm">Loading your ads...</div>
         ) : ads.length === 0 ? (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-            <p className="text-slate-400 mb-4">You haven't posted any ads yet</p>
+          <div className="bg-white border border-zinc-200 rounded-xl p-10 text-center shadow-sm">
+            <p className="text-sm text-zinc-600 mb-4">You haven't posted any ads yet</p>
             <Link
               href="/create-ad"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition"
+              className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition"
             >
               Post Your First Ad
             </Link>
           </div>
         ) : (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+          <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
             <table className="w-full">
-              <thead className="border-b border-slate-700 bg-slate-900/50">
+              <thead className="border-b border-zinc-200 bg-zinc-50/80">
                 <tr>
-                  <th className="text-left px-6 py-3 text-slate-200">Title</th>
-                  <th className="text-left px-6 py-3 text-slate-200">Status</th>
-                  <th className="text-left px-6 py-3 text-slate-200">Package</th>
-                  <th className="text-left px-6 py-3 text-slate-200">Created</th>
-                  <th className="text-left px-6 py-3 text-slate-200">Actions</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Title</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Status</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Package</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Created</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700">
+              <tbody className="divide-y divide-zinc-200">
                 {ads.map((ad) => (
-                  <tr key={ad.id} className="hover:bg-slate-700/50 transition">
+                  <tr key={ad.id} className="hover:bg-zinc-50 transition">
                     <td className="px-6 py-4">
                       <Link
                         href={`/ads/${ad.id}`}
-                        className="text-blue-400 hover:text-blue-300"
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700"
                       >
                         {ad.title}
                       </Link>
@@ -155,32 +204,42 @@ export default function DashboardPage() {
                       <span
                         className={`${
                           statusColors[ad.status] || 'bg-slate-700'
-                        } text-white text-xs font-bold px-3 py-1 rounded capitalize`}
+                        } text-white text-[11px] font-semibold px-3 py-1 rounded-full capitalize`}
                       >
                         {ad.status.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-300">{ad.package.name}</td>
-                    <td className="px-6 py-4 text-slate-400 text-sm">
+                    <td className="px-6 py-4 text-sm text-zinc-600">{ad.package.name}</td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">
                       {new Date(ad.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
                       {ad.status === 'draft' ? (
-                        <Link
-                          href={`/ads/${ad.id}/edit`}
-                          className="text-blue-400 hover:text-blue-300 text-sm"
-                        >
-                          Edit
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={`/ads/${ad.id}/edit`}
+                            className="text-xs md:text-sm font-medium text-blue-600 hover:text-blue-700"
+                          >
+                            Edit
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(ad.id)}
+                            disabled={deletingId === ad.id}
+                            className="text-xs md:text-sm font-medium text-rose-500 hover:text-rose-600 disabled:opacity-50"
+                          >
+                            {deletingId === ad.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
                       ) : ad.status === 'payment_pending' ? (
                         <Link
                           href={`/ads/${ad.id}/payment`}
-                          className="text-blue-400 hover:text-blue-300 text-sm"
+                          className="text-xs md:text-sm font-medium text-blue-600 hover:text-blue-700"
                         >
                           Submit Payment
                         </Link>
                       ) : (
-                        <span className="text-slate-500 text-sm">—</span>
+                        <span className="text-zinc-400 text-sm">—</span>
                       )}
                     </td>
                   </tr>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -14,9 +14,11 @@ type AdDetailMinimal = {
 
 type PaymentMethod = 'bank_transfer' | 'card' | 'mobile_wallet' | 'cash';
 
-export default function PaymentPage({ params }: { params: { id: string } }) {
+export default function PaymentPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const adId = params.id;
 
   const [ad, setAd] = useState<AdDetailMinimal | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,7 @@ export default function PaymentPage({ params }: { params: { id: string } }) {
         setError(null);
 
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${params.id}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${adId}`
         );
         if (!res.ok) throw new Error(`Failed to load ad: ${res.status}`);
 
@@ -52,9 +54,10 @@ export default function PaymentPage({ params }: { params: { id: string } }) {
         setLoading(false);
       }
     };
-
-    fetchAd();
-  }, [params.id]);
+    if (adId) {
+      fetchAd();
+    }
+  }, [adId]);
 
   const submitPayment = async () => {
     if (!user || !ad) return;
@@ -62,7 +65,7 @@ export default function PaymentPage({ params }: { params: { id: string } }) {
     setError(null);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${params.id}/payment`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${adId}/payment`,
         {
           method: 'POST',
           headers: {
@@ -90,7 +93,7 @@ export default function PaymentPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
       <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-6 flex items-center gap-4">
           <Link
@@ -189,13 +192,24 @@ export default function PaymentPage({ params }: { params: { id: string } }) {
                 />
               </label>
 
-              <button
-                disabled={submitting}
-                onClick={submitPayment}
-                className="w-full md:w-auto px-10 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 transition"
-              >
-                {submitting ? 'Submitting...' : 'Submit Payment Proof'}
-              </button>
+              <div className="flex flex-col md:flex-row gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard')}
+                  className="flex-1 md:flex-none px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={submitPayment}
+                  className="flex-1 md:flex-none px-10 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 transition"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Payment Proof'}
+                </button>
+              </div>
             </div>
           </div>
         )}

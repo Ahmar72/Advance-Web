@@ -20,6 +20,37 @@ class AdsService {
     // Generate slug from title
     const slug = this.generateSlug(data.title);
 
+    // Because package_id is NOT NULL at the DB level, we need a temporary
+    // default package for draft ads. This will be overwritten when the
+    // user selects a real package in the next step of the wizard.
+    let draftPackageId: string | null = null;
+
+    const { data: basicPackage, error: basicError } = await supabase
+      .from('packages')
+      .select('id')
+      .eq('slug', 'basic')
+      .single();
+
+    if (!basicError && basicPackage) {
+      draftPackageId = basicPackage.id;
+    } else {
+      const { data: anyPackage } = await supabase
+        .from('packages')
+        .select('id')
+        .eq('is_active', true)
+        .order('price')
+        .limit(1)
+        .single();
+
+      draftPackageId = anyPackage?.id || null;
+    }
+
+    if (!draftPackageId) {
+      throw new Error(
+        'No active packages found. Please run 002_seed_dummy_data.sql in Supabase.'
+      );
+    }
+
     // Create the ad record
     const { data: ad, error } = await supabase
       .from('ads')
@@ -30,13 +61,20 @@ class AdsService {
         description: data.description,
         category_id: data.category_id,
         city_id: data.city_id,
-        package_id: '00000000-0000-0000-0000-000000000000', // Placeholder until package selection
+        package_id: draftPackageId,
         status: 'draft',
       })
       .select()
       .single();
 
-    if (error) throw new Error(`Failed to create ad: ${error.message}`);
+    if (error) {
+      console.error('[ADS] Create ad failed:', {
+        message: error.message,
+        details: error.details,
+        code: error.code,
+      });
+      throw new Error(`Failed to create ad: ${error.message}`);
+    }
 
     // Add media URLs
     const mediaInserts = data.media_urls.map((url) => ({
@@ -67,7 +105,7 @@ class AdsService {
         `
         *,
         media:ad_media(*),
-        seller:users!ads_user_id_fk(id, email, full_name),
+        seller:users!inner(id, email, full_name),
         category:categories(*),
         city:cities(*),
         package:packages(*),
@@ -92,7 +130,7 @@ class AdsService {
         `
         *,
         media:ad_media(*),
-        seller:users!ads_user_id_fk(id, email, full_name),
+        seller:users!inner(id, email, full_name),
         category:categories(*),
         city:cities(*),
         package:packages(*),
@@ -222,6 +260,25 @@ class AdsService {
     }
 
     return updated;
+  }
+
+  /**
+   * Delete an ad owned by the current user (drafts only)
+   */
+  async deleteAd(userId: string, adId: string): Promise<void> {
+    const supabase = createAdminSupabase();
+    const ad = await this.getAdById(adId);
+    if (ad.user_id !== userId) {
+      throw new Error('Unauthorized to delete this ad');
+    }
+    if (ad.status !== 'draft') {
+      throw new Error('Only draft ads can be deleted');
+    }
+
+    const { error } = await supabase.from('ads').delete().eq('id', adId);
+    if (error) {
+      throw new Error(`Failed to delete ad: ${error.message}`);
+    }
   }
 
   /**

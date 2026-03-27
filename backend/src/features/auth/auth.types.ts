@@ -1,3 +1,5 @@
+import { UserRole, UserStatus } from "../../shared/types/database.types";
+
 // Auth-specific types
 export interface SignInWithGitHubResponse {
   url: string;
@@ -22,5 +24,7 @@ export interface SessionData {
 export interface AuthUser {
   id: string;
   email: string;
+  role: UserRole;
+  status: UserStatus;
   user_metadata?: Record<string, any>;
 }

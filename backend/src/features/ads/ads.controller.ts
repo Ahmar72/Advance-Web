@@ -17,7 +17,15 @@ export class AdsController {
       const ad = await adsService.createAd(userId, req.body);
       res.status(201).json(success(ad, 'Ad created successfully'));
     } catch (err: any) {
-      res.status(400).json(errorResponse(err.message));
+      console.error('[ADS] Create ad error:', {
+        message: err.message,
+        code: err.code,
+        details: err.details,
+        hint: err.hint,
+        userId: req.user?.id,
+        body: req.body,
+      });
+      res.status(400).json(errorResponse(err.message || 'Failed to create ad'));
     }
   }
 
@@ -79,6 +87,24 @@ export class AdsController {
 
       const ad = await adsService.updateAd(userId, req.params.id, req.body);
       res.json(success(ad, 'Ad updated successfully'));
+    } catch (err: any) {
+      res.status(400).json(errorResponse(err.message));
+    }
+  }
+
+  /**
+   * DELETE /api/v1/ads/:id - Delete own draft ad
+   */
+  async deleteAd(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json(errorResponse('Unauthorized', 401));
+        return;
+      }
+
+      await adsService.deleteAd(userId, req.params.id);
+      res.json(success(null, 'Ad deleted successfully'));
     } catch (err: any) {
       res.status(400).json(errorResponse(err.message));
     }

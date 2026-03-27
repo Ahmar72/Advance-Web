@@ -26,7 +26,7 @@ router.get('/:id', adsController.getAd.bind(adsController));
 // CLIENT ROUTES (Protected)
 
 /**
- * POST /api/v1/client/ads - Create ad draft
+ * POST /api/v1/ads - Create ad draft
  */
 router.post(
   '/',
@@ -51,7 +51,16 @@ router.patch(
 );
 
 /**
- * POST /api/v1/client/ads/:id/select-package - Select package and submit
+ * DELETE /api/v1/ads/:id - Delete own draft
+ */
+router.delete(
+  '/:id',
+  requireAuth,
+  adsController.deleteAd.bind(adsController)
+);
+
+/**
+ * POST /api/v1/ads/:id/select-package - Select package and submit
  */
 router.post(
   '/:id/select-package',

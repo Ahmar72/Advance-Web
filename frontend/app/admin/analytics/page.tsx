@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useAuth } from '@/lib/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useAuth } from "@/lib/AuthContext";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { AdminShell } from "@/components/admin/AdminShell";
 
 interface AnalyticsData {
   summary: {
@@ -84,40 +85,35 @@ export default function AnalyticsPage() {
   };
 
   if (isLoading || !user) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+        <p className="text-sm text-zinc-500">Loading analytics...</p>
+      </div>
+    );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-slate-400">Loading analytics...</div>
-      </div>
+      <AdminShell title="Analytics" subtitle="Platform metrics and performance">
+        <div className="text-sm text-zinc-500">Loading analytics...</div>
+      </AdminShell>
     );
   }
 
   if (!analytics) {
     return (
-      <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-slate-400">Failed to load analytics</div>
-      </div>
+      <AdminShell title="Analytics" subtitle="Platform metrics and performance">
+        <div className="text-sm text-red-600">Failed to load analytics.</div>
+      </AdminShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-800">
-      {/* Header */}
-      <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-white">Analytics</h1>
-          <p className="text-slate-400">Platform metrics and performance</p>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+    <AdminShell title="Analytics" subtitle="Platform metrics and performance">
+      <div className="space-y-8">
         {/* Summary Cards */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-4">Listings Summary</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Listings Summary</h2>
           <div className="grid md:grid-cols-5 gap-4">
             <StatCard
               label="Total Ads"
@@ -153,7 +149,7 @@ export default function AnalyticsPage() {
 
         {/* Revenue Section */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-4">Revenue</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Revenue</h2>
           <div className="grid md:grid-cols-5 gap-4">
             <StatCard
               label="Total Revenue"
@@ -188,7 +184,7 @@ export default function AnalyticsPage() {
 
         {/* Moderation Stats */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-4">Moderation</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Moderation</h2>
           <div className="grid md:grid-cols-4 gap-4">
             <StatCard
               label="Total Reviewed"
@@ -216,14 +212,14 @@ export default function AnalyticsPage() {
         {/* Top Categories and Cities */}
         <div className="grid md:grid-cols-2 gap-6">
           {/* Top Categories */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Top Categories</h3>
+          <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-zinc-900 mb-4">Top Categories</h3>
             <div className="space-y-2">
               {analytics.taxonomy.top_categories.map((cat, i) => (
                 <div key={i} className="flex justify-between items-center">
-                  <span className="text-slate-400">{cat.name}</span>
+                  <span className="text-zinc-600">{cat.name}</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="w-32 h-2 bg-zinc-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-blue-500"
                         style={{
@@ -239,7 +235,7 @@ export default function AnalyticsPage() {
                         }}
                       />
                     </div>
-                    <span className="text-white font-semibold w-8 text-right">
+                    <span className="text-zinc-900 font-semibold w-8 text-right">
                       {cat.count}
                     </span>
                   </div>
@@ -249,14 +245,14 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Top Cities */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Top Cities</h3>
+          <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-zinc-900 mb-4">Top Cities</h3>
             <div className="space-y-2">
               {analytics.taxonomy.top_cities.map((city, i) => (
                 <div key={i} className="flex justify-between items-center">
-                  <span className="text-slate-400">{city.name}</span>
+                  <span className="text-zinc-600">{city.name}</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="w-32 h-2 bg-zinc-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500"
                         style={{
@@ -272,7 +268,7 @@ export default function AnalyticsPage() {
                         }}
                       />
                     </div>
-                    <span className="text-white font-semibold w-8 text-right">
+                    <span className="text-zinc-900 font-semibold w-8 text-right">
                       {city.count}
                     </span>
                   </div>
@@ -284,27 +280,27 @@ export default function AnalyticsPage() {
 
         {/* Package Distribution */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-4">Package Distribution</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Package Distribution</h2>
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Ads by Package</h3>
+            <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Ads by Package</h3>
               <div className="space-y-2">
                 {analytics.packages.distribution.map((pkg, i) => (
                   <div key={i} className="flex justify-between items-center">
-                    <span className="text-slate-400">{pkg.name}</span>
-                    <span className="text-white font-semibold">{pkg.count}</span>
+                    <span className="text-zinc-600">{pkg.name}</span>
+                    <span className="text-zinc-900 font-semibold">{pkg.count}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Revenue by Package</h3>
+            <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Revenue by Package</h3>
               <div className="space-y-2">
                 {analytics.packages.revenue_by_package.map((pkg, i) => (
                   <div key={i} className="flex justify-between items-center">
-                    <span className="text-slate-400">{pkg.name}</span>
-                    <span className="text-white font-semibold">
+                    <span className="text-zinc-600">{pkg.name}</span>
+                    <span className="text-zinc-900 font-semibold">
                       Rs {pkg.revenue.toFixed(0)}
                     </span>
                   </div>
@@ -316,7 +312,7 @@ export default function AnalyticsPage() {
 
         {/* User Stats */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-4">User Statistics</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">User Statistics</h2>
           <div className="grid md:grid-cols-3 gap-4">
             <StatCard
               label="Total Users"
@@ -337,7 +333,8 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </AdminShell>
   );
 }
 
@@ -353,22 +350,20 @@ function StatCard({
   icon?: string;
 }) {
   const colorClasses = {
-    blue: 'bg-blue-500/10 border-blue-500/30',
-    green: 'bg-green-500/10 border-green-500/30',
-    red: 'bg-red-500/10 border-red-500/30',
-    yellow: 'bg-yellow-500/10 border-yellow-500/30',
-    purple: 'bg-purple-500/10 border-purple-500/30',
-    slate: 'bg-slate-500/10 border-slate-500/30',
+    blue: "bg-blue-50 border-blue-200",
+    green: "bg-emerald-50 border-emerald-200",
+    red: "bg-red-50 border-red-200",
+    yellow: "bg-amber-50 border-amber-200",
+    purple: "bg-purple-50 border-purple-200",
+    slate: "bg-zinc-50 border-zinc-200",
   };
 
   return (
-    <div
-      className={`${colorClasses[color]} border rounded-lg p-4`}
-    >
+    <div className={`${colorClasses[color]} border rounded-lg p-4 shadow-sm`}>
       <div className="flex justify-between items-start">
         <div>
-          <p className="text-slate-400 text-sm">{label}</p>
-          <p className="text-2xl font-bold text-white mt-2">{value}</p>
+          <p className="text-zinc-500 text-sm">{label}</p>
+          <p className="text-2xl font-bold text-zinc-900 mt-2">{value}</p>
         </div>
         {icon && <span className="text-2xl">{icon}</span>}
       </div>
