@@ -27,20 +27,20 @@ export default function SystemHealthPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
-      <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+      <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-white">System Health</h1>
-          <p className="text-slate-400 mt-1">DB heartbeat and cron health checks.</p>
+          <h1 className="text-3xl font-bold text-zinc-900">System Health</h1>
+          <p className="text-sm text-zinc-600 mt-1">DB heartbeat and cron health checks.</p>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
-        <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6">
-          <div className="text-sm text-slate-400">Current status</div>
-          <div className="text-xl font-semibold text-white mt-2">{status}</div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Current status</div>
+          <div className="text-xl font-semibold text-zinc-900 mt-2">{status}</div>
 
           {error ? (
-            <div className="mt-4 bg-red-900/20 border border-red-800 text-red-200 p-4 rounded-lg text-sm">
+            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-sm">
               {error}
             </div>
           ) : null}
@@ -54,7 +54,7 @@ export default function SystemHealthPage() {
           </button>
         </div>
 
-        <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6 text-slate-200 text-sm leading-relaxed">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 text-zinc-700 text-sm leading-relaxed shadow-sm">
           This calls the backend cron health endpoint (`/api/v1/cron/health`) which triggers a DB heartbeat
           and logs the result into `system_health_logs`.
         </div>

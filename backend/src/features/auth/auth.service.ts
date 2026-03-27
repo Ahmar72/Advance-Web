@@ -1,5 +1,6 @@
 import { createAdminSupabase } from "../../config/supabase";
 import { SessionData, AuthUser } from "./auth.types";
+import type { UserRole } from "../../shared/types/database.types";
 
 export class AuthService {
   /**
@@ -122,7 +123,9 @@ export class AuthService {
 
       const { data: dbUser, error: dbUserError } = await supabase
         .from('users')
-        .select('id, email, full_name, role, status, created_at, updated_at')
+        // Some projects may have an older users table without `status`.
+        // Avoid selecting non-existent columns to prevent runtime errors.
+        .select('id, email, full_name, role, created_at, updated_at')
         .eq('id', data.user.id)
         .single();
 
@@ -130,11 +133,41 @@ export class AuthService {
         throw new Error(`Failed to load local user profile: ${dbUserError?.message || 'User not found'}`);
       }
 
+      // Prefer the role from Supabase user_metadata (which is where
+      // the frontend writes admin/moderator roles), but fall back to
+      // the local users table role and finally "client".
+      const dbRole = (dbUser as any).role as string | null | undefined;
+      const metadataRole = (data.user.user_metadata as any)?.role as string | undefined;
+
+      const normalizeRole = (role: string | null | undefined): UserRole | null => {
+        if (!role) return null;
+        const lower = role.toLowerCase();
+        if (lower === 'admin' || lower === 'moderator' || lower === 'client' || lower === 'super_admin') {
+          return lower as UserRole;
+        }
+        return null;
+      };
+
+      const resolvedRole: UserRole =
+        normalizeRole(metadataRole) ||
+        normalizeRole(dbRole) ||
+        'client';
+
+      // Keep the local users table in sync with the resolved role so
+      // that analytics and other queries can rely on it.
+      if (dbRole !== resolvedRole) {
+        await supabase
+          .from('users')
+          .update({ role: resolvedRole })
+          .eq('id', data.user.id);
+      }
+
       return {
         id: data.user.id,
         email: data.user.email || '',
-        role: dbUser.role,
-        status: dbUser.status,
+        role: resolvedRole,
+        // Default to 'active' if status column does not exist in this schema
+        status: (dbUser as any).status ?? 'active',
         user_metadata: data.user.user_metadata,
       };
     } catch (error) {

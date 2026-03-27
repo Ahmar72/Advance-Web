@@ -1,150 +1,169 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/AuthContext';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
+import { useAuth } from "@/lib/AuthContext";
+import { AdminShell } from "@/components/admin/AdminShell";
 
 export default function SettingsPage() {
-  const { user, isLoading, signOut } = useAuth();
+  const { user, loading, signOut } = useSupabaseAuth();
+  const { signOut: contextSignOut } = useAuth();
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isLoading && !user) router.push('/signin');
-  }, [isLoading, user, router]);
-
-  const handleSignOut = async () => {
-    setBusy(true);
+  const handleLogout = async () => {
     try {
       await signOut();
-      router.push('/signin');
-    } finally {
-      setBusy(false);
+      await contextSignOut();
+      router.push("/signin");
+    } catch (error) {
+      console.error("Logout failed:", error);
     }
   };
 
-  if (isLoading || !user) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-        <p className="text-base text-zinc-500">Loading settings...</p>
+        <p className="text-base text-zinc-500">Loading your settings...</p>
       </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-zinc-50 to-zinc-100">
+        <div className="bg-white border border-zinc-200 rounded-2xl px-8 py-10 shadow-sm text-center max-w-md mx-auto">
+          <h1 className="text-2xl font-semibold text-zinc-900">You&apos;re not signed in</h1>
+          <p className="mt-2 text-sm text-zinc-500">
+            Please sign in to view and manage your account settings.
+          </p>
+          <button
+            onClick={() => router.push("/signin")}
+            className="mt-6 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          >
+            Go to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const role = (user.user_metadata?.role as string) || "client";
+  const email = (user.email || "").toLowerCase();
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.toLowerCase();
+  const moderatorEmail = process.env.NEXT_PUBLIC_MODERATOR_EMAIL?.toLowerCase();
+
+  const isAdmin = !!adminEmail && email === adminEmail;
+
+  const innerContent = (
+    <div className="space-y-6">
+      <section className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-zinc-900">Profile</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Basic information about your account.
+        </p>
+
+        <dl className="mt-4 space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <dt className="text-zinc-500">Email</dt>
+            <dd className="font-medium text-zinc-900">{user.email}</dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-zinc-500">User ID</dt>
+            <dd className="font-mono text-xs text-zinc-500">{user.id}</dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-zinc-500">Role</dt>
+            <dd className="capitalize text-zinc-900">{role}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-zinc-900">Dashboards &amp; Access</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Quick access to your dashboards based on your role.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {role === "client" && (
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white p-4 text-left text-sm transition hover:border-blue-400 hover:bg-zinc-50"
+            >
+              <span className="font-medium text-zinc-900">Client Dashboard</span>
+              <span className="mt-1 text-xs text-zinc-500">
+                Manage your ads, track status, and payments.
+              </span>
+            </button>
+          )}
+
+          {role === "moderator" && (
+            <button
+              onClick={() => router.push("/moderator/queue")}
+              className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white p-4 text-left text-sm transition hover:border-blue-400 hover:bg-zinc-50"
+            >
+              <span className="font-medium text-zinc-900">Moderator Queue</span>
+              <span className="mt-1 text-xs text-zinc-500">
+                Review and moderate client ads.
+              </span>
+            </button>
+          )}
+
+          {(role === "admin" || role === "super_admin") && (
+            <button
+              onClick={() => router.push("/admin/dashboard")}
+              className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white p-4 text-left text-sm transition hover:border-blue-400 hover:bg-zinc-50"
+            >
+              <span className="font-medium text-zinc-900">Admin Dashboard</span>
+              <span className="mt-1 text-xs text-zinc-500">
+                Manage platform-wide analytics and payment queue.
+              </span>
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-zinc-900">Security</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Sign out of your account on this device.
+        </p>
+
+        <button
+          onClick={handleLogout}
+          className="mt-4 inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700"
+        >
+          Sign Out
+        </button>
+      </section>
+    </div>
+  );
+
+  // For admins, render inside the AdminShell to match the
+  // rest of the admin panel UI. For regular users, keep a
+  // simple centered layout with the same visual language.
+  if (isAdmin) {
+    return (
+      <AdminShell
+        title="Account Settings"
+        subtitle="Manage your profile and dashboard access"
+      >
+        {innerContent}
+      </AdminShell>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
-      <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl md:text-3xl font-bold text-zinc-900">Settings</h1>
-          <p className="text-sm text-zinc-500 mt-1">Account details and basic actions.</p>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm">
-          <div className="space-y-4">
-            <div>
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                Email
-              </div>
-              <div className="text-sm font-medium text-zinc-900 break-all">
-                {user.email}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                User ID
-              </div>
-              <div className="text-sm font-mono text-zinc-600 break-all">
-                {user.id}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                Role
-              </div>
-              <div className="text-sm font-medium text-zinc-900">
-                {user.role || 'unknown'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Admin login / panel access */}
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 text-zinc-900 shadow-sm flex flex-col gap-3">
-          <div>
-            <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-              Admin Panel
-            </div>
-            <p className="text-sm text-blue-900 mt-1">
-              Use this button to open the admin dashboard if your account has admin access.
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              if (user.role === 'admin' || user.role === 'super_admin') {
-                router.push('/admin/dashboard');
-              } else {
-                alert('This account is not an admin. Please use an admin account to access the admin panel.');
-              }
-            }}
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition"
-          >
-            Login as admin
-          </button>
-          <p className="text-xs text-blue-900/80">
-            Note: Admin login uses the same GitHub account; only users with role <code>admin</code> or <code>super_admin</code> can access the panel.
+      <div className="max-w-3xl mx-auto px-4 py-10">
+        <div className="space-y-2 mb-6">
+          <h1 className="text-3xl font-bold text-zinc-900">Account Settings</h1>
+          <p className="text-sm text-zinc-500">
+            Manage your account, security, and access to different dashboards.
           </p>
         </div>
-
-        {/* Moderator login / moderation panel access */}
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-zinc-900 shadow-sm flex flex-col gap-3">
-          <div>
-            <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-              Moderation Panel
-            </div>
-            <p className="text-sm text-emerald-900 mt-1">
-              Open the moderator queue to review ads for content quality and policy fit.
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              if (
-                user.role === 'moderator' ||
-                user.role === 'admin' ||
-                user.role === 'super_admin'
-              ) {
-                router.push('/moderator/queue');
-              } else {
-                alert('This account is not a moderator. Please use a moderator or admin account to access the moderation panel.');
-              }
-            }}
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition"
-          >
-            Moderator
-          </button>
-          <p className="text-xs text-emerald-900/80">
-            Note: Moderation access is available for users with role <code>moderator</code>, <code>admin</code>, or <code>super_admin</code>.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={handleSignOut}
-            disabled={busy}
-            className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-sm md:text-base font-semibold rounded-lg disabled:opacity-50 shadow-sm transition"
-          >
-            {busy ? 'Signing out...' : 'Sign Out'}
-          </button>
-          <button
-            onClick={() => router.push('/')}
-            className="flex-1 px-6 py-3 bg-white hover:bg-zinc-50 text-zinc-800 text-sm md:text-base font-semibold rounded-lg border border-zinc-300 shadow-sm transition"
-          >
-            Back to Dashboard
-          </button>
-        </div>
+        {innerContent}
       </div>
     </div>
   );

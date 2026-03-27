@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useCallback, useEffect, useState } from "react";
+import { createContext, useContext, ReactNode, useState } from "react";
 import { supabase } from "./supabaseClient";
+import { useSupabaseAuth } from "./useSupabaseAuth";
 
 export interface User {
   id: string;
@@ -10,7 +11,7 @@ export interface User {
   full_name?: string;
   is_verified_seller?: boolean;
   avatar_url?: string | null;
-  role?: 'client' | 'moderator' | 'admin' | 'super_admin';
+  role?: "client" | "moderator" | "admin" | "super_admin";
 }
 
 interface AuthContextType {
@@ -26,162 +27,52 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const { user: supabaseUser, loading } = useSupabaseAuth();
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const loadSession = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const storedToken = localStorage.getItem("accessToken");
-      const storedRefreshToken = localStorage.getItem("refreshToken");
-      const storedUser = localStorage.getItem("user");
-
-      if (storedToken) {
-        try {
-          const meResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`,
-            {
-              headers: {
-                Authorization: `Bearer ${storedToken}`,
-              },
-            }
-          );
-
-          if (meResponse.ok) {
-            const json = await meResponse.json();
-            const meUser = json.data as User;
-
-            setAccessToken(storedToken);
-            setRefreshToken(storedRefreshToken);
-            setUser(meUser);
-
-            // Keep localStorage in sync with latest user profile (including role).
-            localStorage.setItem("user", JSON.stringify(meUser));
-            return;
-          }
-        } catch (error) {
-          console.error("Failed to fetch current user from backend:", error);
-        }
-
-        // Fallback: use whatever was stored locally if present.
-        if (storedUser) {
-          setAccessToken(storedToken);
-          setRefreshToken(storedRefreshToken);
-          setUser(JSON.parse(storedUser));
-          return;
-        }
+  const mappedUser: User | null = supabaseUser
+    ? {
+        id: supabaseUser.id,
+        email: supabaseUser.email || "",
+        user_metadata: supabaseUser.user_metadata,
+        full_name:
+          (supabaseUser.user_metadata?.full_name as string | undefined) ||
+          (supabaseUser.user_metadata?.name as string | undefined),
+        avatar_url: (supabaseUser.user_metadata?.avatar_url as string | null) || null,
+        role: (supabaseUser.user_metadata?.role as User["role"]) || "client",
       }
-
-      // If anything is missing or backend call failed without fallback, treat as signed out.
-      setAccessToken(null);
-      setRefreshToken(null);
-      setUser(null);
-    } catch (error) {
-      console.error("Failed to load session:", error);
-      // Clear corrupted session data
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("user");
-      setAccessToken(null);
-      setRefreshToken(null);
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Load session from localStorage on mount
-  useEffect(() => {
-    loadSession();
-  }, [loadSession]);
-
-  // Re-load session when the OAuth callback updates localStorage.
-  useEffect(() => {
-    const onSessionUpdated = () => {
-      loadSession();
-    };
-    window.addEventListener("auth-session-updated", onSessionUpdated);
-
-    // Also listen for storage events from other tabs/windows.
-    const onStorage = () => {
-      loadSession();
-    };
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      window.removeEventListener("auth-session-updated", onSessionUpdated);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, [loadSession]);
+    : null;
 
   const signInWithGitHub = async () => {
+    setIsRedirecting(true);
     try {
-      setIsLoading(true);
-      console.log("Starting GitHub sign-in...");
-      console.log("Backend URL:", process.env.NEXT_PUBLIC_BACKEND_URL);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
 
-      // Get GitHub sign-in URL from backend
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/github/signin`);
-      console.log("Backend response status:", response.status);
-      
-      const data = await response.json();
-      console.log("Backend response data:", data);
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to get GitHub URL");
+      if (error) {
+        throw error;
       }
-
-      if (!data.data?.url) {
-        throw new Error("No GitHub URL in response");
-      }
-
-      console.log("Redirecting to GitHub:", data.data.url);
-      // Redirect to GitHub OAuth
-      window.location.href = data.data.url;
-    } catch (error) {
-      console.error("GitHub sign-in failed:", error);
-      setIsLoading(false);
-      throw error;
+    } finally {
+      setIsRedirecting(false);
     }
   };
 
   const signOut = async () => {
-    try {
-      setIsLoading(true);
-
-      if (accessToken) {
-        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/logout`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-      }
-
-      // Clear state
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("user");
-      setUser(null);
-      setAccessToken(null);
-      setRefreshToken(null);
-    } catch (error) {
-      console.error("Sign out failed:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    await supabase.auth.signOut();
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        isLoading,
-        isAuthenticated: !!user && !!accessToken,
-        accessToken,
-        refreshToken,
+        user: mappedUser,
+        isLoading: loading || isRedirecting,
+        isAuthenticated: !!mappedUser,
+        accessToken: null,
+        refreshToken: null,
         signInWithGitHub,
         signOut,
       }}

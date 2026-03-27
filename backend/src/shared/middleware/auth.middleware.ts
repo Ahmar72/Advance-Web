@@ -39,7 +39,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       console.error('[AUTH] Token validation failed:', error instanceof Error ? error.message : error);
       res.status(401).json({
         success: false,
-        error: "Invalid or expired token",
+        error:
+          error instanceof Error && error.message
+            ? error.message
+            : "Invalid or expired token",
       });
     }
   } catch (error) {
@@ -83,9 +86,14 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 export const requireRole = (allowedRoles: string[]) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userRole = req.user?.role;
+      // Prefer an explicit role property, but fall back to
+      // Supabase user_metadata.role when present.
+      const rawRole: string | undefined =
+        req.user?.role || (req.user?.user_metadata as any)?.role;
+      const userRole = rawRole?.toLowerCase();
 
       if (!userRole) {
+        console.warn('[AUTH] User role not found for user:', req.user?.id);
         res.status(401).json({
           success: false,
           error: "User role not found",
@@ -94,6 +102,7 @@ export const requireRole = (allowedRoles: string[]) => {
       }
 
       if (!allowedRoles.includes(userRole)) {
+        console.warn('[AUTH] Access denied. User:', req.user?.id, 'role:', userRole, 'allowed:', allowedRoles);
         res.status(403).json({
           success: false,
           error: `Access denied. Required roles: ${allowedRoles.join(", ")}. Your role: ${userRole}`,

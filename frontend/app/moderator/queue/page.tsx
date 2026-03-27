@@ -1,94 +1,98 @@
 "use client";
 
-import { useAuth } from "@/lib/AuthContext";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
+import { supabase } from "@/lib/supabaseClient";
 
 interface ReviewItem {
   id: string;
   title: string;
   description: string;
   status: string;
-  user: { email: string };
+  user_email: string;
   media: Array<{ original_url: string }>;
 }
 
 export default function ModeratorQueuePage() {
-  const { user, isLoading } = useAuth();
+  const { user, role, loading } = useSupabaseAuth();
   const router = useRouter();
   const [queue, setQueue] = useState<ReviewItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingQueue, setLoadingQueue] = useState(true);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (
-      !isLoading &&
+      !loading &&
       (!user ||
-        (user.role !== "moderator" && user.role !== "admin" && user.role !== "super_admin"))
+        (role !== "moderator" && role !== "admin" && role !== "super_admin"))
     ) {
       router.push("/signin");
     }
-  }, [user, isLoading, router]);
+  }, [user, role, loading, router]);
 
   useEffect(() => {
-    if (user) {
-      fetchQueue();
+    if (user && (role === "moderator" || role === "admin" || role === "super_admin")) {
+      void fetchQueue();
     }
-  }, [user]);
+  }, [user, role]);
 
   const fetchQueue = async () => {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/moderator?limit=50`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-          },
-        }
-      );
+      const { data, error } = await supabase
+        .from("ads")
+        .select(
+          `id, title, description, status, users:user_id(email), ad_media:ad_media(original_url)`
+        )
+        .eq("status", "under_review")
+        .limit(50);
 
-      if (response.ok) {
-        const { data } = await response.json();
-        setQueue(data.data || []);
+      if (error) {
+        console.error("Failed to fetch moderation queue from Supabase", error.message);
+        return;
       }
+
+      const mapped: ReviewItem[] = (data || []).map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        status: row.status,
+        user_email: row.users?.email ?? "",
+        media: row.ad_media || [],
+      }));
+
+      setQueue(mapped);
     } catch (error) {
       console.error("Failed to fetch queue:", error);
     } finally {
-      setLoading(false);
+      setLoadingQueue(false);
     }
   };
 
   const handleApprove = async (adId: string) => {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/moderator/${adId}/review`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
-          body: JSON.stringify({
-            approved: true,
-            internal_note: notes[adId] || undefined,
-          }),
-        }
-      );
+      const { error } = await supabase
+        .from("ads")
+        .update({ status: "scheduled" })
+        .eq("id", adId)
+        .eq("status", "under_review");
 
-      if (response.ok) {
-        setQueue(queue.filter((item) => item.id !== adId));
+      if (error) {
+        console.error("Failed to approve ad:", error.message);
+        return;
       }
+
+      setQueue((prev) => prev.filter((item) => item.id !== adId));
     } catch (error) {
       console.error("Failed to approve ad:", error);
     }
   };
 
   const handleReject = async (adId: string) => {
-    const reason = prompt(
-      "Rejection reason (required, minimum 10 characters):"
-    )
-      ?.trim()
-      .toString() || "";
+    const reason =
+      prompt("Rejection reason (required, minimum 10 characters):")
+        ?.trim()
+        .toString() || "";
 
     if (reason.length < 10) {
       alert("Reason must be at least 10 characters.");
@@ -96,58 +100,50 @@ export default function ModeratorQueuePage() {
     }
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/moderator/${adId}/review`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
-          body: JSON.stringify({
-            approved: false,
-            rejection_reason: reason,
-            internal_note: notes[adId] || undefined,
-          }),
-        }
-      );
+      const { error } = await supabase
+        .from("ads")
+        .update({ status: "rejected" })
+        .eq("id", adId)
+        .eq("status", "under_review");
 
-      if (response.ok) {
-        setQueue(queue.filter((item) => item.id !== adId));
+      if (error) {
+        console.error("Failed to reject ad:", error.message);
+        return;
       }
+
+      setQueue((prev) => prev.filter((item) => item.id !== adId));
     } catch (error) {
       console.error("Failed to reject ad:", error);
     }
   };
 
   const handleFlag = async (adId: string) => {
-    // PDF requires moderators to be able to flag suspicious media/content.
     const reason = prompt("Flag reason (min 10 chars):") || "";
     if (reason.trim().length < 10) {
-      alert('Reason must be at least 10 characters.');
+      alert("Reason must be at least 10 characters.");
       return;
     }
     const severityInput = prompt("Severity (low | medium | high):", "medium") || "medium";
     const severity = severityInput.toLowerCase();
-    if (severity !== 'low' && severity !== 'medium' && severity !== 'high') {
-      alert('Invalid severity. Use: low, medium, or high.');
+    if (severity !== "low" && severity !== "medium" && severity !== "high") {
+      alert("Invalid severity. Use: low, medium, or high.");
       return;
     }
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/moderator/${adId}/flag`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
-          body: JSON.stringify({ reason, severity }),
-        }
-      );
+      const { error } = await supabase.from("audit_logs").insert({
+        action_type: "moderator_flag",
+        target_type: "ad",
+        target_id: adId,
+        note: `${severity.toUpperCase()}: ${reason}`,
+      });
 
-      if (!response.ok) throw new Error(`Flag failed: ${response.status}`);
+      if (error) {
+        console.error("Failed to flag content:", error.message);
+        alert("Failed to flag content.");
+        return;
+      }
+
       alert("Content flagged.");
     } catch (e) {
       console.error("Failed to flag content:", e);
@@ -155,7 +151,7 @@ export default function ModeratorQueuePage() {
     }
   };
 
-  if (isLoading || !user) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
         <p className="text-base text-zinc-500">Loading moderation queue...</p>
@@ -177,7 +173,7 @@ export default function ModeratorQueuePage() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {loading ? (
+        {loadingQueue ? (
           <div className="text-center text-zinc-500 text-sm">Loading queue...</div>
         ) : queue.length === 0 ? (
           <div className="bg-white border border-zinc-200 rounded-2xl p-10 text-center shadow-sm">
@@ -203,7 +199,7 @@ export default function ModeratorQueuePage() {
                         <span>No media uploaded</span>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-500">Submitted by: {item.user.email}</p>
+                    <p className="text-xs text-zinc-500">Submitted by: {item.user_email}</p>
                     <p className="text-[11px] text-zinc-500">
                       Check for misleading information, inappropriate content, and spam.
                     </p>

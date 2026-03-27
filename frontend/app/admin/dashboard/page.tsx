@@ -1,10 +1,11 @@
 "use client";
 
-import { useAuth } from "@/lib/AuthContext";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
+import { supabase } from "@/lib/supabaseClient";
 
 interface DashboardMetrics {
   total_ads: number;
@@ -14,47 +15,60 @@ interface DashboardMetrics {
 }
 
 export default function AdminDashboardPage() {
-  const { user, isLoading } = useAuth();
+  const { user, role, loading } = useSupabaseAuth();
   const router = useRouter();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && (!user || (user.role !== "admin" && user.role !== "super_admin"))) {
+    if (!loading && (!user || (role !== "admin" && role !== "super_admin"))) {
       router.push("/signin");
     }
-  }, [user, isLoading, router]);
+  }, [user, role, loading, router]);
 
   useEffect(() => {
-    if (user) {
-      fetchMetrics();
+    if (user && (role === "admin" || role === "super_admin")) {
+      void fetchMetrics();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, role]);
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/dashboard`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
-        }
-      );
+      const [{ count: totalAds }, { count: activeAds }, paymentsRes, { count: rejectedAds }] =
+        await Promise.all([
+          supabase.from("ads").select("id", { count: "exact", head: true }),
+          supabase
+            .from("ads")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "published"),
+          supabase.from("payments").select("amount, status"),
+          supabase
+            .from("ads")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "rejected"),
+        ]);
 
-      if (response.ok) {
-        const { data } = await response.json();
-        setMetrics(data);
+      let totalRevenue = 0;
+      if (!paymentsRes.error && paymentsRes.data) {
+        totalRevenue = paymentsRes.data
+          .filter((p: any) => p.status === "verified")
+          .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
       }
+
+      setMetrics({
+        total_ads: totalAds ?? 0,
+        active_ads: activeAds ?? 0,
+        total_revenue: totalRevenue,
+        rejected_ads: rejectedAds ?? 0,
+      });
     } catch (error) {
-      console.error("Failed to fetch metrics:", error);
+      console.error("Failed to fetch metrics from Supabase:", error);
     } finally {
-      setLoading(false);
+      setLoadingMetrics(false);
     }
   };
 
-  if (isLoading || !user) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
         <p className="text-base text-zinc-500">Loading admin dashboard...</p>
@@ -67,7 +81,7 @@ export default function AdminDashboardPage() {
       title="Admin Dashboard"
       subtitle="Platform metrics, payments, moderation, and analytics"
     >
-      {loading ? (
+      {loadingMetrics ? (
         <div className="text-center text-zinc-500 text-sm">Loading...</div>
       ) : (
         <>
@@ -108,13 +122,13 @@ export default function AdminDashboardPage() {
             </Link>
 
             <Link
-              href="/moderator/queue"
+              href="/admin/moderation"
               className="block bg-white border border-zinc-200 p-6 rounded-2xl hover:bg-zinc-50 shadow-sm transition"
             >
-              <h3 className="text-lg font-semibold text-zinc-900 mb-1">Content Review</h3>
-              <p className="text-sm text-zinc-600">Review ads under moderation</p>
+              <h3 className="text-lg font-semibold text-zinc-900 mb-1">Admin Approvals</h3>
+              <p className="text-sm text-zinc-600">Accept or reject ads approved by moderators</p>
               <span className="text-sm font-semibold text-blue-600 mt-4 inline-block">
-                Review Queue 
+                Review Admin Queue 
                 
               </span>
             </Link>

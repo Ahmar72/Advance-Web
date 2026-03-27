@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { supabase } from "@/lib/supabaseClient";
 
 type PaymentRow = {
   id: string;
@@ -42,11 +43,20 @@ export default function PaymentQueuePage() {
       setLoading(true);
       setError(null);
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("Failed to load queue: missing access token");
+      }
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/payments?limit=50`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
@@ -67,6 +77,15 @@ export default function PaymentQueuePage() {
 
   const verify = async (paymentId: string, verified: boolean) => {
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("Action failed: missing access token");
+      }
+
       const body = { verified };
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/payments/${paymentId}/verify`,
@@ -74,7 +93,7 @@ export default function PaymentQueuePage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(body),
         }
@@ -91,13 +110,22 @@ export default function PaymentQueuePage() {
   const reject = async (paymentId: string) => {
     const reason = prompt('Rejection reason (optional):') || '';
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("Action failed: missing access token");
+      }
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/payments/${paymentId}/verify`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ verified: false, rejection_reason: reason }),
         }

@@ -97,31 +97,37 @@ export default function HomePage() {
             </Link>
             {user ? (
               <>
-                <Link href="/dashboard" className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium">
-                  Dashboard
-                </Link>
-                {user.role === 'moderator' && (
-                  <Link
-                    href="/moderator/queue"
-                    className="text-slate-300 hover:text-white transition"
-                  >
-                    Moderator
-                  </Link>
-                )}
-                {(user.role === 'admin' || user.role === 'super_admin') && (
+                {user.role === 'admin' || user.role === 'super_admin' ? (
                   <Link
                     href="/admin/dashboard"
-                    className="text-slate-300 hover:text-white transition"
+                    className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
                   >
-                    Admin
+                    Admin Dashboard
+                  </Link>
+                ) : user.role === 'moderator' ? (
+                  <Link
+                    href="/moderator/queue"
+                    className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
+                  >
+                    Moderator Queue
+                  </Link>
+                ) : (
+                  <Link
+                    href="/dashboard"
+                    className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
+                  >
+                    Dashboard
                   </Link>
                 )}
-                <Link
-                  href="/create-ad"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
-                >
-                  Post Ad
-                </Link>
+
+                {user.role === 'client' && (
+                  <Link
+                    href="/create-ad"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
+                  >
+                    Post Ad
+                  </Link>
+                )}
               </>
             ) : (
               <Link

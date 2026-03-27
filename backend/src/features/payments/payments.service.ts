@@ -11,24 +11,77 @@ class PaymentsService {
     const supabase = createAdminSupabase();
     const offset = (page - 1) * limit;
 
-    const { data, count, error } = await supabase
+    // First, fetch pending payments only. We'll manually attach related
+    // ad and user details to avoid complex joined selects that can
+    // cause PostgREST errors if relationships are not inferred.
+    const { data: payments, count, error } = await supabase
       .from('payments')
-      .select(
-        `
-        *,
-        ad:ads(id, title, slug, user_id),
-        user:users(id, email, full_name)
-      `,
-        { count: 'exact' }
-      )
+      .select('*', { count: 'exact' })
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
 
-    if (error) throw new Error(`Failed to fetch payment queue: ${error.message}`);
+    if (error) {
+      throw new Error(`Failed to fetch payment queue: ${error.message}`);
+    }
+
+    if (!payments || payments.length === 0) {
+      return {
+        data: [],
+        total: count || 0,
+        page,
+        limit,
+        pages: Math.ceil((count || 0) / limit),
+      };
+    }
+
+    // Collect unique ad and user IDs referenced by these payments
+    const adIds = Array.from(
+      new Set(
+        payments
+          .map((p: any) => p.ad_id)
+          .filter((id: string | null | undefined) => !!id)
+      )
+    );
+    const userIds = Array.from(
+      new Set(
+        payments
+          .map((p: any) => p.user_id)
+          .filter((id: string | null | undefined) => !!id)
+      )
+    );
+
+    // Fetch related ads
+    const { data: ads, error: adsError } = await supabase
+      .from('ads')
+      .select('id, title, slug, user_id')
+      .in('id', adIds);
+
+    if (adsError) {
+      throw new Error(`Failed to fetch related ads for payments: ${adsError.message}`);
+    }
+
+    // Fetch related users
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, email, full_name')
+      .in('id', userIds);
+
+    if (usersError) {
+      throw new Error(`Failed to fetch related users for payments: ${usersError.message}`);
+    }
+
+    const adsById = new Map<string, any>((ads || []).map((a: any) => [a.id, a]));
+    const usersById = new Map<string, any>((users || []).map((u: any) => [u.id, u]));
+
+    const enrichedPayments = payments.map((p: any) => ({
+      ...p,
+      ad: adsById.get(p.ad_id) || null,
+      user: usersById.get(p.user_id) || null,
+    }));
 
     return {
-      data,
+      data: enrichedPayments,
       total: count || 0,
       page,
       limit,

@@ -1,85 +1,133 @@
-'use client';
+"use client";
 
-import { useAuth } from '@/lib/AuthContext';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
+import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/lib/supabaseClient";
 
 interface UserAd {
   id: string;
   title: string;
   slug: string;
   status: string;
-  package: { name: string };
+  package_name: string | null;
   created_at: string;
   expire_at: string | null;
 }
 
 export default function DashboardPage() {
-  const { user, isLoading } = useAuth();
+  const { user, role, loading, signOut } = useSupabaseAuth();
+  const { user: contextUser, signOut: contextSignOut } = useAuth();
   const router = useRouter();
   const [ads, setAds] = useState<UserAd[]>([]);
   const [loadingAds, setLoadingAds] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/signin');
+    if (loading) return;
+
+    if (!user) {
+      router.push("/signin");
+      return;
     }
-  }, [user, isLoading, router]);
+
+    const currentRole = (user.user_metadata?.role as string) || role || "client";
+
+    if (currentRole === "admin" || currentRole === "super_admin") {
+      router.push("/admin/dashboard");
+      return;
+    }
+
+    if (currentRole === "moderator") {
+      router.push("/moderator/queue");
+    }
+  }, [user, role, loading, router]);
 
   useEffect(() => {
     if (user) {
-      fetchUserAds();
+      void fetchUserAds();
     }
   }, [user]);
 
   const fetchUserAds = async () => {
+    if (!user) return;
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/admin/my-ads`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
+      const { data, error } = await supabase
+        .from("ads")
+        .select(
+          `id, title, slug, status, created_at, expire_at, package:packages(name)`
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
 
-      if (response.ok) {
-        const { data } = await response.json();
-        setAds(data.data || []);
+      if (error) {
+        console.error("Failed to fetch ads from Supabase:", error.message);
+        return;
       }
+
+      const mapped: UserAd[] = (data || []).map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        slug: row.slug,
+        status: row.status,
+        package_name: row.package?.name ?? null,
+        created_at: row.created_at,
+        expire_at: row.expire_at,
+      }));
+
+      setAds(mapped);
     } catch (error) {
-      console.error('Failed to fetch ads:', error);
+      console.error("Failed to fetch ads:", error);
     } finally {
       setLoadingAds(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = window.confirm('Are you sure you want to delete this draft ad?');
-    if (!confirmDelete) return;
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this draft ad?"
+    );
+    if (!confirmDelete || !user) return;
 
     try {
       setDeletingId(id);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
+      const { error } = await supabase
+        .from("ads")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .eq("status", "draft");
 
-      if (!response.ok) {
-        console.error('Failed to delete ad');
+      if (error) {
+        console.error("Failed to delete ad", error.message);
         return;
       }
 
       setAds((prev) => prev.filter((ad) => ad.id !== id));
     } catch (error) {
-      console.error('Failed to delete ad:', error);
+      console.error("Failed to delete ad:", error);
     } finally {
       setDeletingId(null);
     }
   };
 
-  if (isLoading || !user) {
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.toLowerCase();
+  const moderatorEmail = process.env.NEXT_PUBLIC_MODERATOR_EMAIL?.toLowerCase();
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      await contextSignOut();
+      router.push("/signin");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
         <p className="text-base text-zinc-500">Loading your dashboard...</p>
@@ -99,32 +147,65 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
-      {/* Header */}
-      <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 flex">
+      {/* Sidebar */}
+      <aside className="hidden md:flex md:flex-col w-64 border-r border-zinc-200 bg-white/90 backdrop-blur-sm">
+        <div className="px-4 py-5 border-b border-zinc-200">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-semibold">
+              {(contextUser?.full_name || user.email || "U").charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-zinc-900 truncate">
+                {contextUser?.full_name || user.email}
+              </div>
+              <div className="text-xs text-zinc-500 capitalize">{role || "client"}</div>
+            </div>
+          </div>
+        </div>
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto text-sm">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard")}
+            className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-900 bg-zinc-100"
+          >
+            My Listings
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/create-ad")}
+            className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-700 hover:bg-zinc-100 transition"
+          >
+            Post New Ad
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/settings")}
+            className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-700 hover:bg-zinc-100 transition"
+          >
+            Account Settings
+          </button>
+        </nav>
+        <div className="px-4 py-3 border-t border-zinc-200">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full inline-flex items-center justify-center rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose-700 transition"
+          >
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-20">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-zinc-900">My Listings</h1>
               <p className="text-sm text-zinc-500">Manage your ads and track their status</p>
             </div>
             <div className="flex items-center gap-3">
-              {(user.role === 'moderator' || user.role === 'admin' || user.role === 'super_admin') && (
-                <Link
-                  href="/moderator/queue"
-                  className="text-xs md:text-sm px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition"
-                >
-                  Moderator Queue
-                </Link>
-              )}
-              {(user.role === 'admin' || user.role === 'super_admin') && (
-                <Link
-                  href="/admin/dashboard"
-                  className="text-xs md:text-sm px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition"
-                >
-                  Admin Dashboard
-                </Link>
-              )}
               <Link
                 href="/create-ad"
                 className="bg-blue-600 hover:bg-blue-700 text-white px-5 md:px-6 py-2.5 rounded-lg text-sm md:text-base font-semibold shadow-sm transition"
@@ -134,10 +215,13 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+          {accessError && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+              {accessError}
+            </div>
+          )}
         {/* Stats */}
         <div className="grid md:grid-cols-4 gap-4">
           <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
@@ -209,12 +293,12 @@ export default function DashboardPage() {
                         {ad.status.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-zinc-600">{ad.package.name}</td>
+                    <td className="px-6 py-4 text-sm text-zinc-600">{ad.package_name ?? "-"}</td>
                     <td className="px-6 py-4 text-sm text-zinc-500">
                       {new Date(ad.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
-                      {ad.status === 'draft' ? (
+                      {ad.status === "draft" ? (
                         <div className="flex items-center gap-3">
                           <Link
                             href={`/ads/${ad.id}/edit`}
@@ -231,12 +315,12 @@ export default function DashboardPage() {
                             {deletingId === ad.id ? 'Deleting...' : 'Delete'}
                           </button>
                         </div>
-                      ) : ad.status === 'payment_pending' ? (
+                      ) : ad.status === "payment_pending" ? (
                         <Link
-                          href={`/ads/${ad.id}/payment`}
+                          href={`/packages?adId=${ad.id}`}
                           className="text-xs md:text-sm font-medium text-blue-600 hover:text-blue-700"
                         >
-                          Submit Payment
+                          You can pay for your plan
                         </Link>
                       ) : (
                         <span className="text-zinc-400 text-sm">—</span>
@@ -248,6 +332,7 @@ export default function DashboardPage() {
             </table>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

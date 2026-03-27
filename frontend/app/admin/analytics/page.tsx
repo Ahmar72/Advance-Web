@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { supabase } from "@/lib/supabaseClient";
 
 interface AnalyticsData {
   summary: {
@@ -64,11 +65,20 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("Missing access token");
+      }
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
@@ -332,7 +342,6 @@ export default function AnalyticsPage() {
             />
           </div>
         </div>
-      </div>
       </div>
     </AdminShell>
   );
