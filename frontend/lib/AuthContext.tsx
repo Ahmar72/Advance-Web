@@ -1,17 +1,28 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useState } from "react";
-import { supabase } from "./supabaseClient";
 import { useSupabaseAuth } from "./useSupabaseAuth";
+import { supabase } from "./supabase/client";
+
+export type UserRole = "client" | "moderator" | "admin" | "super_admin";
+
+export type UserMetadata = {
+  full_name?: string;
+  name?: string;
+  avatar_url?: string | null;
+  role?: UserRole;
+  user_name?: string;
+  [key: string]: unknown;
+};
 
 export interface User {
   id: string;
   email: string;
-  user_metadata?: Record<string, any>;
+  user_metadata?: UserMetadata;
   full_name?: string;
   is_verified_seller?: boolean;
   avatar_url?: string | null;
-  role?: "client" | "moderator" | "admin" | "super_admin";
+  role?: UserRole;
 }
 
 interface AuthContextType {
@@ -34,11 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ? {
         id: supabaseUser.id,
         email: supabaseUser.email || "",
-        user_metadata: supabaseUser.user_metadata,
+        user_metadata: (supabaseUser.user_metadata || {}) as UserMetadata,
         full_name:
           (supabaseUser.user_metadata?.full_name as string | undefined) ||
           (supabaseUser.user_metadata?.name as string | undefined),
-        avatar_url: (supabaseUser.user_metadata?.avatar_url as string | null) || null,
+        avatar_url:
+          (supabaseUser.user_metadata?.avatar_url as string | null) || null,
         role: (supabaseUser.user_metadata?.role as User["role"]) || "client",
       }
     : null;

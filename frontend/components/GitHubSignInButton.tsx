@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useTransition } from "react";
 
 interface GitHubSignInButtonProps {
@@ -25,9 +24,10 @@ export function GitHubSignInButton({
       disabled={isLoading || disabled}
       className="w-full group relative inline-flex items-center justify-center gap-2 px-4 py-3 font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
       style={{
-        background: isLoading || disabled 
-          ? "#f3f4f6" 
-          : "linear-gradient(135deg, #1f2937 0%, #111827 100%)",
+        background:
+          isLoading || disabled
+            ? "#f3f4f6"
+            : "linear-gradient(135deg, #1f2937 0%, #111827 100%)",
         border: "1px solid #e5e7eb",
         color: isLoading || disabled ? "#6b7280" : "#ffffff",
       }}

@@ -1,21 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
-import { useAuth } from "@/lib/AuthContext";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 export default function SettingsPage() {
   const { user, loading, signOut } = useSupabaseAuth();
-  const { signOut: contextSignOut } = useAuth();
   const router = useRouter();
-  const [accessError, setAccessError] = useState<string | null>(null);
 
   const handleLogout = async () => {
     try {
       await signOut();
-      await contextSignOut();
       router.push("/signin");
     } catch (error) {
       console.error("Logout failed:", error);
@@ -32,9 +27,11 @@ export default function SettingsPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-zinc-50 to-zinc-100">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-zinc-50 to-zinc-100">
         <div className="bg-white border border-zinc-200 rounded-2xl px-8 py-10 shadow-sm text-center max-w-md mx-auto">
-          <h1 className="text-2xl font-semibold text-zinc-900">You&apos;re not signed in</h1>
+          <h1 className="text-2xl font-semibold text-zinc-900">
+            You&apos;re not signed in
+          </h1>
           <p className="mt-2 text-sm text-zinc-500">
             Please sign in to view and manage your account settings.
           </p>
@@ -52,7 +49,6 @@ export default function SettingsPage() {
   const role = (user.user_metadata?.role as string) || "client";
   const email = (user.email || "").toLowerCase();
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.toLowerCase();
-  const moderatorEmail = process.env.NEXT_PUBLIC_MODERATOR_EMAIL?.toLowerCase();
 
   const isAdmin = !!adminEmail && email === adminEmail;
 
@@ -69,59 +65,12 @@ export default function SettingsPage() {
             <dt className="text-zinc-500">Email</dt>
             <dd className="font-medium text-zinc-900">{user.email}</dd>
           </div>
-          <div className="flex items-center justify-between">
-            <dt className="text-zinc-500">User ID</dt>
-            <dd className="font-mono text-xs text-zinc-500">{user.id}</dd>
-          </div>
+
           <div className="flex items-center justify-between">
             <dt className="text-zinc-500">Role</dt>
             <dd className="capitalize text-zinc-900">{role}</dd>
           </div>
         </dl>
-      </section>
-
-      <section className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-900">Dashboards &amp; Access</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Quick access to your dashboards based on your role.
-        </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {role === "client" && (
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white p-4 text-left text-sm transition hover:border-blue-400 hover:bg-zinc-50"
-            >
-              <span className="font-medium text-zinc-900">Client Dashboard</span>
-              <span className="mt-1 text-xs text-zinc-500">
-                Manage your ads, track status, and payments.
-              </span>
-            </button>
-          )}
-
-          {role === "moderator" && (
-            <button
-              onClick={() => router.push("/moderator/queue")}
-              className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white p-4 text-left text-sm transition hover:border-blue-400 hover:bg-zinc-50"
-            >
-              <span className="font-medium text-zinc-900">Moderator Queue</span>
-              <span className="mt-1 text-xs text-zinc-500">
-                Review and moderate client ads.
-              </span>
-            </button>
-          )}
-
-          {(role === "admin" || role === "super_admin") && (
-            <button
-              onClick={() => router.push("/admin/dashboard")}
-              className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white p-4 text-left text-sm transition hover:border-blue-400 hover:bg-zinc-50"
-            >
-              <span className="font-medium text-zinc-900">Admin Dashboard</span>
-              <span className="mt-1 text-xs text-zinc-500">
-                Manage platform-wide analytics and payment queue.
-              </span>
-            </button>
-          )}
-        </div>
       </section>
 
       <section className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
@@ -155,7 +104,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
+    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100">
       <div className="max-w-3xl mx-auto px-4 py-10">
         <div className="space-y-2 mb-6">
           <h1 className="text-3xl font-bold text-zinc-900">Account Settings</h1>
@@ -168,4 +117,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
