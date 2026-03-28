@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase/client";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 interface AdminReviewAd {
@@ -14,6 +14,14 @@ interface AdminReviewAd {
   created_at: string;
   user_email: string;
 }
+
+type AdminReviewRow = {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  users: { email: string } | { email: string }[] | null;
+};
 
 export default function AdminModerationPage() {
   const { user, role, loading } = useSupabaseAuth();
@@ -50,12 +58,15 @@ export default function AdminModerationPage() {
         return;
       }
 
-      const mapped: AdminReviewAd[] = (data || []).map((row: any) => ({
+      const rows = (data || []) as unknown as AdminReviewRow[];
+      const mapped: AdminReviewAd[] = rows.map((row) => ({
         id: row.id,
         title: row.title,
         status: row.status,
         created_at: row.created_at,
-        user_email: row.users?.email ?? "",
+        user_email: Array.isArray(row.users)
+          ? (row.users[0]?.email ?? "")
+          : (row.users?.email ?? ""),
       }));
 
       setAds(mapped);
@@ -126,10 +137,14 @@ export default function AdminModerationPage() {
         ) : null}
 
         {loadingAds ? (
-          <div className="text-center text-zinc-500 text-sm">Loading queue...</div>
+          <div className="text-center text-zinc-500 text-sm">
+            Loading queue...
+          </div>
         ) : ads.length === 0 ? (
           <div className="bg-white border border-zinc-200 rounded-2xl p-10 text-center shadow-sm">
-            <p className="text-zinc-700 text-base">No ads waiting for admin approval</p>
+            <p className="text-zinc-700 text-base">
+              No ads waiting for admin approval
+            </p>
             <p className="text-zinc-500 text-sm mt-2">
               Moderators have not approved any new ads yet.
             </p>

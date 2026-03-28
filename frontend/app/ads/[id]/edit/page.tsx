@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
-import { useAuth } from '@/lib/AuthContext';
-import { supabase } from '@/lib/supabaseClient';
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/lib/supabase/client";
+import { ArrowLeftIcon } from "lucide-react";
 
 type Option = { id: string; name: string; slug: string };
 
@@ -16,6 +17,8 @@ type AdDetailForEdit = {
   city_id: string;
   status: string;
 };
+
+const EDITABLE_STATUSES = ["draft", "under_review", "rejected"];
 
 export default function EditAdPage() {
   const { user, isLoading } = useAuth();
@@ -30,32 +33,39 @@ export default function EditAdPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [cityId, setCityId] = useState('');
-  const [mediaUrls, setMediaUrls] = useState<string[]>(['']);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [cityId, setCityId] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<string[]>([""]);
 
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !user) router.push('/signin');
+    if (!isLoading && !user) router.push("/signin");
   }, [isLoading, user, router]);
 
   useEffect(() => {
     const fetchOptions = async () => {
-      const [catRes, cityRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/categories`),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/cities`),
+      const [catQuery, cityQuery] = await Promise.all([
+        supabase
+          .from("categories")
+          .select("id, name, slug")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
+        supabase
+          .from("cities")
+          .select("id, name, slug")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
       ]);
 
-      const [catJson, cityJson] = await Promise.all([
-        catRes.json(),
-        cityRes.json(),
-      ]);
-
-      setCategories((catJson.data as Option[]) || []);
-      setCities((cityJson.data as Option[]) || []);
+      if (!catQuery.error) {
+        setCategories((catQuery.data as Option[]) || []);
+      }
+      if (!cityQuery.error) {
+        setCities((cityQuery.data as Option[]) || []);
+      }
     };
 
     const fetchAd = async () => {
@@ -63,20 +73,26 @@ export default function EditAdPage() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${adId}`
-        );
-        if (!res.ok) throw new Error(`Failed to load ad: ${res.status}`);
+        const query = await supabase
+          .from("ads")
+          .select(
+            "id, title, description, category_id, city_id, status, media:ad_media(original_url)",
+          )
+          .eq("id", adId)
+          .maybeSingle();
 
-        const json = await res.json();
-        const data = json.data as {
+        if (query.error || !query.data) {
+          throw new Error(query.error?.message || "Failed to load ad");
+        }
+
+        const data = query.data as unknown as {
           id: string;
           title: string;
           description: string;
           category_id: string;
           city_id: string;
           status: string;
-          media?: Array<{ original_url: string }>;
+          media?: Array<{ original_url: string }> | null;
         };
 
         const adDetail: AdDetailForEdit = {
@@ -94,9 +110,13 @@ export default function EditAdPage() {
         setCityId(adDetail.city_id);
 
         const existingMedia = data.media || [];
-        setMediaUrls(existingMedia.length ? existingMedia.map((m) => m.original_url) : ['']);
+        setMediaUrls(
+          existingMedia.length
+            ? existingMedia.map((m) => m.original_url)
+            : [""],
+        );
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load ad');
+        setError(e instanceof Error ? e.message : "Failed to load ad");
       } finally {
         setLoading(false);
       }
@@ -119,50 +139,76 @@ export default function EditAdPage() {
 
       if (sessionError || !sessionData.session) {
         throw new Error(
-          'Your session has expired. Please sign in again before updating this listing.'
+          "Your session has expired. Please sign in again before updating this listing.",
         );
       }
 
-      const accessToken = sessionData.session.access_token;
+      if (!sessionData.session.access_token) {
+        throw new Error("Missing access token. Please sign in again.");
+      }
 
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/${adId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            title,
-            description,
-            category_id: categoryId,
-            city_id: cityId,
-            media_urls: mediaUrls.filter((u) => u.trim()),
-          }),
+      const { error: updateError } = await supabase
+        .from("ads")
+        .update({
+          title,
+          description,
+          category_id: categoryId,
+          city_id: cityId,
+        })
+        .eq("id", adId)
+        .eq("user_id", user.id)
+        .in("status", EDITABLE_STATUSES);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      const { error: clearMediaError } = await supabase
+        .from("ad_media")
+        .delete()
+        .eq("ad_id", adId);
+
+      if (clearMediaError) {
+        throw new Error(clearMediaError.message);
+      }
+
+      const filteredMedia = mediaUrls
+        .map((url) => url.trim())
+        .filter((url) => Boolean(url));
+
+      if (filteredMedia.length > 0) {
+        const mediaPayload = filteredMedia.map((url) => ({
+          ad_id: adId,
+          original_url: url,
+          source_type:
+            url.includes("youtube.com") || url.includes("youtu.be")
+              ? "youtube"
+              : "external",
+          validation_status: "pending",
+        }));
+
+        const { error: insertMediaError } = await supabase
+          .from("ad_media")
+          .insert(mediaPayload);
+
+        if (insertMediaError) {
+          throw new Error(insertMediaError.message);
         }
-      );
+      }
 
-      if (!res.ok) throw new Error(`Update failed: ${res.status}`);
-      router.push('/dashboard');
+      router.push(`/ads/${adId}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed');
+      setError(e instanceof Error ? e.message : "Update failed");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
+    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100">
       <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 py-5 flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="text-sm text-zinc-600 hover:text-zinc-900 transition"
-          >
-            ← Back
-          </Link>
-          <h1 className="text-2xl font-bold text-zinc-900">Edit Draft</h1>
+          <h1 className="text-2xl font-bold text-zinc-900">Edit Listing</h1>
         </div>
       </div>
 
@@ -175,20 +221,31 @@ export default function EditAdPage() {
           </div>
         ) : !ad ? (
           <div className="text-center text-zinc-500">Ad not found.</div>
-        ) : ad.status !== 'draft' ? (
-          <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center shadow-sm">
-            <div className="text-zinc-900 font-semibold text-lg">
-              Editing not allowed
-            </div>
-            <div className="text-zinc-500 mt-2">
-              Current status: {ad.status}
+        ) : !EDITABLE_STATUSES.includes(ad.status) ? (
+          <div>
+            <Link
+              href={`/ads/${adId}`}
+              className="text-sm text-zinc-600 hover:text-zinc-900 transition"
+            >
+              <ArrowLeftIcon className="w-4 h-4" />
+              Back to Ad
+            </Link>
+            <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center shadow-sm">
+              <div className="text-zinc-900 font-semibold text-lg">
+                Editing not allowed
+              </div>
+              <div className="text-zinc-500 mt-2">
+                Current status: {ad.status}
+              </div>
             </div>
           </div>
         ) : (
           <div className="space-y-6">
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 space-y-4 shadow-sm">
               <label className="block">
-                <div className="text-zinc-800 text-sm mb-1 font-medium">Title</div>
+                <div className="text-zinc-800 text-sm mb-1 font-medium">
+                  Title
+                </div>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -197,7 +254,9 @@ export default function EditAdPage() {
               </label>
 
               <label className="block">
-                <div className="text-zinc-800 text-sm mb-1 font-medium">Description</div>
+                <div className="text-zinc-800 text-sm mb-1 font-medium">
+                  Description
+                </div>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -208,7 +267,9 @@ export default function EditAdPage() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <label className="block">
-                  <div className="text-zinc-800 text-sm mb-1 font-medium">Category</div>
+                  <div className="text-zinc-800 text-sm mb-1 font-medium">
+                    Category
+                  </div>
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
@@ -223,7 +284,9 @@ export default function EditAdPage() {
                 </label>
 
                 <label className="block">
-                  <div className="text-zinc-800 text-sm mb-1 font-medium">City</div>
+                  <div className="text-zinc-800 text-sm mb-1 font-medium">
+                    City
+                  </div>
                   <select
                     value={cityId}
                     onChange={(e) => setCityId(e.target.value)}
@@ -239,7 +302,9 @@ export default function EditAdPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="text-zinc-800 text-sm font-medium">Media URLs</div>
+                <div className="text-zinc-800 text-sm font-medium">
+                  Media URLs
+                </div>
                 {mediaUrls.map((url, idx) => (
                   <div key={idx} className="flex gap-2">
                     <input
@@ -254,7 +319,9 @@ export default function EditAdPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => setMediaUrls((prev) => prev.filter((_, i) => i !== idx))}
+                      onClick={() =>
+                        setMediaUrls((prev) => prev.filter((_, i) => i !== idx))
+                      }
                       className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-md text-xs font-medium disabled:opacity-50 border border-zinc-300"
                       disabled={mediaUrls.length === 1}
                     >
@@ -265,7 +332,7 @@ export default function EditAdPage() {
 
                 <button
                   type="button"
-                  onClick={() => setMediaUrls((prev) => [...prev, ''])}
+                  onClick={() => setMediaUrls((prev) => [...prev, ""])}
                   className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-xs font-medium transition shadow-sm"
                 >
                   + Add URL
@@ -278,7 +345,7 @@ export default function EditAdPage() {
                 onClick={submit}
                 className="w-full md:w-auto px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition shadow-sm"
               >
-                {submitting ? 'Saving...' : 'Save Changes'}
+                {submitting ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
@@ -287,4 +354,3 @@ export default function EditAdPage() {
     </div>
   );
 }
-
