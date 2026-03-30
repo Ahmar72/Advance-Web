@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
@@ -32,7 +32,7 @@ type UserAdRow = {
   package: { name: string } | { name: string }[] | null;
 };
 
-export default function DashboardPage() {
+function DashboardPageInner() {
   const { user, role, loading, signOut } = useSupabaseAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -388,5 +388,19 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+          <p className="text-base text-zinc-500">Loading your dashboard...</p>
+        </div>
+      }
+    >
+      <DashboardPageInner />
+    </Suspense>
   );
 }

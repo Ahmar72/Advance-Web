@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Route } from "next";
 import { ReactNode } from "react";
 
 interface AdminShellProps {
@@ -10,7 +11,7 @@ interface AdminShellProps {
   children: ReactNode;
 }
 
-const navItems = [
+const navItems: { href: Route; label: string }[] = [
   { href: "/admin/dashboard", label: "Overview" },
   { href: "/admin/payment-queue", label: "Payment Queue" },
   { href: "/moderator/queue", label: "Moderation Queue" },
