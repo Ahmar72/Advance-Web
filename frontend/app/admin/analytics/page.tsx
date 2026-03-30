@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase/client";
 
 interface AnalyticsData {
   summary: {
@@ -42,6 +42,34 @@ interface AnalyticsData {
   };
 }
 
+type AdAnalyticsRow = {
+  id: string;
+  status: string;
+  category_id: string | null;
+  city_id: string | null;
+  package_id: string | null;
+  user_id: string;
+  created_at: string;
+};
+
+type PaymentAnalyticsRow = {
+  id: string;
+  amount: number;
+  status: string;
+  package_id: string | null;
+  created_at: string;
+};
+
+type CategoryRow = { id: string; name: string };
+type CityRow = { id: string; name: string };
+type PackageRow = { id: string; name: string };
+type UserAnalyticsRow = {
+  id: string;
+  is_verified_seller: boolean | null;
+  last_sign_in_at: string | null;
+  created_at: string;
+};
+
 export default function AnalyticsPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -51,9 +79,9 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (
       !isLoading &&
-      (!user || (user.role !== 'admin' && user.role !== 'super_admin'))
+      (!user || (user.role !== "admin" && user.role !== "super_admin"))
     ) {
-      router.push('/signin');
+      router.push("/signin");
     }
   }, [user, isLoading, router]);
 
@@ -65,30 +93,176 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const [
+        adsQuery,
+        paymentsQuery,
+        categoriesQuery,
+        citiesQuery,
+        packagesQuery,
+        usersQuery,
+      ] = await Promise.all([
+        supabase
+          .from("ads")
+          .select(
+            "id, status, category_id, city_id, package_id, user_id, created_at",
+          ),
+        supabase
+          .from("payments")
+          .select("id, amount, status, package_id, created_at"),
+        supabase.from("categories").select("id, name"),
+        supabase.from("cities").select("id, name"),
+        supabase.from("packages").select("id, name"),
+        supabase
+          .from("users")
+          .select("id, is_verified_seller, last_sign_in_at, created_at"),
+      ]);
 
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        throw new Error("Missing access token");
-      }
+      if (adsQuery.error) throw new Error(adsQuery.error.message);
+      if (paymentsQuery.error) throw new Error(paymentsQuery.error.message);
+      if (categoriesQuery.error) throw new Error(categoriesQuery.error.message);
+      if (citiesQuery.error) throw new Error(citiesQuery.error.message);
+      if (packagesQuery.error) throw new Error(packagesQuery.error.message);
+      if (usersQuery.error) throw new Error(usersQuery.error.message);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
+      const ads = (adsQuery.data || []) as AdAnalyticsRow[];
+      const payments = (paymentsQuery.data || []) as PaymentAnalyticsRow[];
+      const categories = (categoriesQuery.data || []) as CategoryRow[];
+      const cities = (citiesQuery.data || []) as CityRow[];
+      const packages = (packagesQuery.data || []) as PackageRow[];
+      const users = (usersQuery.data || []) as UserAnalyticsRow[];
+
+      const countByStatus = (status: string) =>
+        ads.filter((ad) => ad.status === status).length;
+
+      const verifiedPayments = payments.filter((p) => p.status === "verified");
+      const pendingPayments = payments.filter((p) => p.status === "pending");
+      const rejectedPayments = payments.filter((p) => p.status === "rejected");
+      const totalRevenue = verifiedPayments.reduce(
+        (sum: number, p) => sum + Number(p.amount || 0),
+        0,
       );
 
-      if (response.ok) {
-        const { data } = await response.json();
-        setAnalytics(data);
-      }
+      const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+      const cityNameById = new Map(cities.map((c) => [c.id, c.name]));
+      const packageNameById = new Map(packages.map((p) => [p.id, p.name]));
+
+      const categoryCounts = new Map<string, number>();
+      const cityCounts = new Map<string, number>();
+      const packageCounts = new Map<string, number>();
+      const revenueByPackage = new Map<string, number>();
+
+      ads.forEach((ad) => {
+        if (ad.category_id) {
+          categoryCounts.set(
+            ad.category_id,
+            (categoryCounts.get(ad.category_id) || 0) + 1,
+          );
+        }
+        if (ad.city_id) {
+          cityCounts.set(ad.city_id, (cityCounts.get(ad.city_id) || 0) + 1);
+        }
+        if (ad.package_id) {
+          packageCounts.set(
+            ad.package_id,
+            (packageCounts.get(ad.package_id) || 0) + 1,
+          );
+        }
+      });
+
+      verifiedPayments.forEach((p) => {
+        if (!p.package_id) return;
+        revenueByPackage.set(
+          p.package_id,
+          (revenueByPackage.get(p.package_id) || 0) + Number(p.amount || 0),
+        );
+      });
+
+      const toTopRows = (
+        countMap: Map<string, number>,
+        nameMap: Map<string, string>,
+      ) =>
+        Array.from(countMap.entries())
+          .map(([id, count]) => ({ name: nameMap.get(id) || "Unknown", count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const activeUserIds = new Set<string>();
+
+      users.forEach((u) => {
+        const lastSignIn = u.last_sign_in_at
+          ? new Date(u.last_sign_in_at)
+          : null;
+        if (lastSignIn && lastSignIn >= thirtyDaysAgo) {
+          activeUserIds.add(u.id);
+        }
+      });
+
+      ads.forEach((ad) => {
+        const createdAt = ad.created_at ? new Date(ad.created_at) : null;
+        if (createdAt && createdAt >= thirtyDaysAgo) {
+          activeUserIds.add(ad.user_id);
+        }
+      });
+
+      const reviewed = countByStatus("published") + countByStatus("rejected");
+      const approvalRate = reviewed
+        ? (countByStatus("published") / reviewed) * 100
+        : 0;
+      const rejectionRate = reviewed
+        ? (countByStatus("rejected") / reviewed) * 100
+        : 0;
+
+      setAnalytics({
+        summary: {
+          total_ads: ads.length,
+          published_ads: countByStatus("published"),
+          pending_ads:
+            countByStatus("under_review") +
+            countByStatus("scheduled") +
+            countByStatus("payment_pending"),
+          rejected_ads: countByStatus("rejected"),
+          expired_ads: countByStatus("expired"),
+        },
+        revenue: {
+          total_revenue: totalRevenue,
+          verified_payments: verifiedPayments.length,
+          pending_payments: pendingPayments.length,
+          rejected_payments: rejectedPayments.length,
+          average_order_value:
+            verifiedPayments.length > 0
+              ? totalRevenue / verifiedPayments.length
+              : 0,
+        },
+        moderation: {
+          total_reviewed: reviewed,
+          approval_rate: approvalRate,
+          rejection_rate: rejectionRate,
+          average_review_time: "N/A",
+        },
+        taxonomy: {
+          top_categories: toTopRows(categoryCounts, categoryNameById),
+          top_cities: toTopRows(cityCounts, cityNameById),
+        },
+        packages: {
+          distribution: toTopRows(packageCounts, packageNameById),
+          revenue_by_package: Array.from(revenueByPackage.entries())
+            .map(([id, revenue]) => ({
+              name: packageNameById.get(id) || "Unknown",
+              revenue,
+            }))
+            .sort((a, b) => b.revenue - a.revenue),
+        },
+        users: {
+          total_users: users.length,
+          active_users: activeUserIds.size,
+          verified_sellers: users.filter((u) => Boolean(u.is_verified_seller))
+            .length,
+        },
+      });
     } catch (error) {
-      console.error('Failed to fetch analytics:', error);
+      console.error("Failed to fetch analytics:", error);
     } finally {
       setLoading(false);
     }
@@ -123,7 +297,9 @@ export default function AnalyticsPage() {
       <div className="space-y-8">
         {/* Summary Cards */}
         <div>
-          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Listings Summary</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">
+            Listings Summary
+          </h2>
           <div className="grid md:grid-cols-5 gap-4">
             <StatCard
               label="Total Ads"
@@ -223,7 +399,9 @@ export default function AnalyticsPage() {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Top Categories */}
           <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-zinc-900 mb-4">Top Categories</h3>
+            <h3 className="text-lg font-semibold text-zinc-900 mb-4">
+              Top Categories
+            </h3>
             <div className="space-y-2">
               {analytics.taxonomy.top_categories.map((cat, i) => (
                 <div key={i} className="flex justify-between items-center">
@@ -237,8 +415,8 @@ export default function AnalyticsPage() {
                             (cat.count /
                               Math.max(
                                 ...analytics.taxonomy.top_categories.map(
-                                  (c) => c.count
-                                )
+                                  (c) => c.count,
+                                ),
                               )) *
                             100
                           }%`,
@@ -256,7 +434,9 @@ export default function AnalyticsPage() {
 
           {/* Top Cities */}
           <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-zinc-900 mb-4">Top Cities</h3>
+            <h3 className="text-lg font-semibold text-zinc-900 mb-4">
+              Top Cities
+            </h3>
             <div className="space-y-2">
               {analytics.taxonomy.top_cities.map((city, i) => (
                 <div key={i} className="flex justify-between items-center">
@@ -270,8 +450,8 @@ export default function AnalyticsPage() {
                             (city.count /
                               Math.max(
                                 ...analytics.taxonomy.top_cities.map(
-                                  (c) => c.count
-                                )
+                                  (c) => c.count,
+                                ),
                               )) *
                             100
                           }%`,
@@ -290,22 +470,30 @@ export default function AnalyticsPage() {
 
         {/* Package Distribution */}
         <div>
-          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Package Distribution</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">
+            Package Distribution
+          </h2>
           <div className="grid md:grid-cols-2 gap-6">
             <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Ads by Package</h3>
+              <h3 className="text-lg font-semibold text-zinc-900 mb-4">
+                Ads by Package
+              </h3>
               <div className="space-y-2">
                 {analytics.packages.distribution.map((pkg, i) => (
                   <div key={i} className="flex justify-between items-center">
                     <span className="text-zinc-600">{pkg.name}</span>
-                    <span className="text-zinc-900 font-semibold">{pkg.count}</span>
+                    <span className="text-zinc-900 font-semibold">
+                      {pkg.count}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Revenue by Package</h3>
+              <h3 className="text-lg font-semibold text-zinc-900 mb-4">
+                Revenue by Package
+              </h3>
               <div className="space-y-2">
                 {analytics.packages.revenue_by_package.map((pkg, i) => (
                   <div key={i} className="flex justify-between items-center">
@@ -322,7 +510,9 @@ export default function AnalyticsPage() {
 
         {/* User Stats */}
         <div>
-          <h2 className="text-2xl font-bold text-zinc-900 mb-4">User Statistics</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">
+            User Statistics
+          </h2>
           <div className="grid md:grid-cols-3 gap-4">
             <StatCard
               label="Total Users"
@@ -350,12 +540,12 @@ export default function AnalyticsPage() {
 function StatCard({
   label,
   value,
-  color = 'blue',
+  color = "blue",
   icon,
 }: {
   label: string;
   value: string | number;
-  color?: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'slate';
+  color?: "blue" | "green" | "red" | "yellow" | "purple" | "slate";
   icon?: string;
 }) {
   const colorClasses = {

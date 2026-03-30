@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useAuth } from '@/lib/AuthContext';
+import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase/client";
 
 interface SearchResult {
   id: string;
@@ -30,45 +30,90 @@ interface City {
   slug: string;
 }
 
+type ExploreSuggestionRow = {
+  title: string | null;
+};
+
+type ExploreSearchRow = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+  category:
+    | { name: string; slug: string }
+    | { name: string; slug: string }[]
+    | null;
+  city:
+    | { name: string; slug: string }
+    | { name: string; slug: string }[]
+    | null;
+  package:
+    | { name?: string; price?: number; is_featured?: boolean }
+    | {
+        name?: string;
+        price?: number;
+        is_featured?: boolean;
+      }[]
+    | null;
+  seller:
+    | { full_name: string | null; email: string; is_verified_seller?: boolean }
+    | {
+        full_name: string | null;
+        email: string;
+        is_verified_seller?: boolean;
+      }[]
+    | null;
+  media: Array<{ original_url: string; thumbnail_url: string | null }> | null;
+};
+
 export default function ExplorePage() {
-  const { user } = useAuth();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [cityFilter, setCityFilter] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const [sortBy, setSortBy] = useState<
-    'relevance' | 'newest' | 'price_asc' | 'price_desc' | 'popular'
-  >('relevance');
+    "relevance" | "newest" | "price_asc" | "price_desc" | "popular"
+  >("relevance");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const hasLoadedOnceRef = useRef(false);
 
   // Fetch categories and cities on mount
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const [categoriesRes, citiesRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/categories`),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/cities`),
+        const [categoriesQuery, citiesQuery] = await Promise.all([
+          supabase
+            .from("categories")
+            .select("id, name, slug")
+            .eq("is_active", true)
+            .order("name", { ascending: true }),
+          supabase
+            .from("cities")
+            .select("id, name, slug")
+            .eq("is_active", true)
+            .order("name", { ascending: true }),
         ]);
 
-        if (categoriesRes.ok) {
-          const { data } = await categoriesRes.json();
-              setCategories((data as Category[]) || []);
+        if (!categoriesQuery.error) {
+          setCategories((categoriesQuery.data as Category[]) || []);
         }
-        if (citiesRes.ok) {
-          const { data } = await citiesRes.json();
-              setCities((data as City[]) || []);
+        if (!citiesQuery.error) {
+          setCities((citiesQuery.data as City[]) || []);
         }
       } catch (error) {
-        console.error('Failed to fetch filters:', error);
+        console.error("Failed to fetch filters:", error);
       }
     };
 
@@ -80,15 +125,23 @@ export default function ExplorePage() {
     if (searchQuery.length >= 2) {
       const timer = setTimeout(async () => {
         try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/search/suggestions?q=${encodeURIComponent(searchQuery)}`
-          );
-          if (response.ok) {
-            const { data } = await response.json();
-            setSuggestions(data.suggestions || []);
-          }
+          const { data, error } = await supabase
+            .from("ads")
+            .select("title")
+            .eq("status", "published")
+            .ilike("title", `%${searchQuery}%`)
+            .limit(8);
+
+          if (error) return;
+
+          const rows = (data || []) as ExploreSuggestionRow[];
+          const titles = Array.from(
+            new Set(rows.map((row) => String(row.title || "").trim())),
+          ).filter(Boolean);
+
+          setSuggestions(titles);
         } catch (error) {
-          console.error('Failed to fetch suggestions:', error);
+          console.error("Failed to fetch suggestions:", error);
         }
       }, 300);
 
@@ -98,54 +151,152 @@ export default function ExplorePage() {
     }
   }, [searchQuery]);
 
-  // Fetch search results
+  // Debounce main search query to reduce request bursts while typing.
   useEffect(() => {
-    fetchResults();
-  }, [searchQuery, categoryFilter, cityFilter, minPrice, maxPrice, sortBy, page]);
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 300);
 
-  const fetchResults = async () => {
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchResults = useCallback(async () => {
     try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '20',
-        sortBy,
-      });
-
-      if (searchQuery) params.append('q', searchQuery);
-      if (categoryFilter) params.append('category', categoryFilter);
-      if (cityFilter) params.append('city', cityFilter);
-      if (minPrice) params.append('minPrice', minPrice);
-      if (maxPrice) params.append('maxPrice', maxPrice);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/search?${params}`,
-        {
-          headers: user
-            ? { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-            : {},
-        }
-      );
-
-      if (response.ok) {
-        const { data } = await response.json();
-        setResults(data.results || []);
-        setTotal(data.total || 0);
-        setTotalPages(data.pages || 1);
+      if (!hasLoadedOnceRef.current) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
       }
+
+      const pageSize = 20;
+      let query = supabase
+        .from("ads")
+        .select(
+          "id, title, description, status, created_at, category:categories(name, slug), city:cities(name, slug), package:packages(name, price, is_featured), seller:users(full_name, email, is_verified_seller), media:ad_media(original_url, thumbnail_url)",
+        );
+
+      // Show only approved ads in explore.
+      // RLS will still limit anonymous users to statuses they can read.
+      query = query.in("status", [
+        "payment_pending",
+        "payment_verified",
+        "scheduled",
+        "published",
+      ]);
+
+      query = query.order("created_at", { ascending: false }).limit(500);
+
+      if (debouncedSearchQuery) {
+        query = query.or(
+          `title.ilike.%${debouncedSearchQuery}%,description.ilike.%${debouncedSearchQuery}%`,
+        );
+      }
+
+      if (categoryFilter) {
+        query = query.eq("category.slug", categoryFilter);
+      }
+
+      if (cityFilter) {
+        query = query.eq("city.slug", cityFilter);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const rows = (data || []) as unknown as ExploreSearchRow[];
+      let mapped: SearchResult[] = rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        price: Number(
+          (Array.isArray(row.package)
+            ? row.package[0]?.price
+            : row.package?.price) || 0,
+        ),
+        category: Array.isArray(row.category)
+          ? row.category[0]?.name || "Category"
+          : row.category?.name || "Category",
+        city: Array.isArray(row.city)
+          ? row.city[0]?.name || "City"
+          : row.city?.name || "City",
+        image_url:
+          row.media?.[0]?.thumbnail_url || row.media?.[0]?.original_url || null,
+        seller_name: Array.isArray(row.seller)
+          ? row.seller[0]?.full_name || row.seller[0]?.email || "Unknown"
+          : row.seller?.full_name || row.seller?.email || "Unknown",
+        seller_verified: Array.isArray(row.seller)
+          ? Boolean(row.seller[0]?.is_verified_seller)
+          : Boolean(row.seller?.is_verified_seller),
+        status: row.status,
+        created_at: row.created_at,
+      }));
+
+      if (minPrice) {
+        const minValue = Number(minPrice);
+        if (!Number.isNaN(minValue)) {
+          mapped = mapped.filter((r) => r.price >= minValue);
+        }
+      }
+
+      if (maxPrice) {
+        const maxValue = Number(maxPrice);
+        if (!Number.isNaN(maxValue)) {
+          mapped = mapped.filter((r) => r.price <= maxValue);
+        }
+      }
+
+      if (sortBy === "price_asc") {
+        mapped.sort((a, b) => a.price - b.price);
+      } else if (sortBy === "price_desc") {
+        mapped.sort((a, b) => b.price - a.price);
+      } else if (sortBy === "popular") {
+        mapped.sort((a, b) => {
+          if (a.seller_verified !== b.seller_verified) {
+            return Number(b.seller_verified) - Number(a.seller_verified);
+          }
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        });
+      }
+
+      const totalRecords = mapped.length;
+      const paged = mapped.slice((page - 1) * pageSize, page * pageSize);
+
+      setResults(paged);
+      setTotal(totalRecords);
+      setTotalPages(Math.max(1, Math.ceil(totalRecords / pageSize)));
+      hasLoadedOnceRef.current = true;
     } catch (error) {
-      console.error('Failed to fetch results:', error);
+      console.error("Failed to fetch results:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [
+    debouncedSearchQuery,
+    categoryFilter,
+    cityFilter,
+    minPrice,
+    maxPrice,
+    sortBy,
+    page,
+  ]);
+
+  // Fetch search results
+  useEffect(() => {
+    void fetchResults();
+  }, [fetchResults]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
+    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100">
       {/* Header */}
       <div className="border-b border-slate-700 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-white mb-4">Explore Listings</h1>
+          <h1 className="text-3xl font-bold text-white mb-4">
+            Explore Listings
+          </h1>
 
           {/* Advanced Search */}
           <div className="space-y-4">
@@ -160,7 +311,9 @@ export default function ExplorePage() {
                   setPage(1);
                   setShowSuggestions(true);
                 }}
-                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                onFocus={() =>
+                  suggestions.length > 0 && setShowSuggestions(true)
+                }
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
               />
@@ -246,11 +399,11 @@ export default function ExplorePage() {
                 onChange={(e) => {
                   setSortBy(
                     e.target.value as
-                      | 'relevance'
-                      | 'newest'
-                      | 'price_asc'
-                      | 'price_desc'
-                      | 'popular'
+                      | "relevance"
+                      | "newest"
+                      | "price_asc"
+                      | "price_desc"
+                      | "popular",
                   );
                   setPage(1);
                 }}
@@ -272,8 +425,9 @@ export default function ExplorePage() {
         {/* Results count */}
         {!loading && (
           <div className="text-slate-400 text-sm mb-4">
-            Found {total} listing{total !== 1 ? 's' : ''}
+            Found {total} listing{total !== 1 ? "s" : ""}
             {searchQuery && ` for "${searchQuery}"`}
+            {refreshing ? " • Updating..." : ""}
           </div>
         )}
 
@@ -281,7 +435,9 @@ export default function ExplorePage() {
           <div className="text-center text-slate-400 py-12">Loading ads...</div>
         ) : results.length === 0 ? (
           <div className="text-center text-slate-400 py-12">
-            <p>No listings found. Try adjusting your filters or search query.</p>
+            <p>
+              No listings found. Try adjusting your filters or search query.
+            </p>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -329,7 +485,7 @@ export default function ExplorePage() {
                         Rs {result.price.toLocaleString()}
                       </p>
                       <p className="text-xs text-slate-500">
-                        by{' '}
+                        by{" "}
                         <span className="text-slate-400">
                           {result.seller_name}
                         </span>
@@ -368,8 +524,8 @@ export default function ExplorePage() {
                   onClick={() => setPage(pageNum)}
                   className={`px-4 py-2 rounded transition ${
                     page === pageNum
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-800 border border-slate-700 text-white hover:border-blue-500'
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-800 border border-slate-700 text-white hover:border-blue-500"
                   }`}
                 >
                   {pageNum}

@@ -1,15 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "./supabaseClient";
+import { supabase } from "./supabase/client";
 import type { User, AuthError } from "@supabase/supabase-js";
+import type { UserMetadata, UserRole } from "./AuthContext";
 
-type AppRole = "client" | "moderator" | "admin" | "super_admin";
+type AppRole = UserRole;
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 const MODERATOR_EMAIL = process.env.NEXT_PUBLIC_MODERATOR_EMAIL;
 
-async function applyRoleForSampleEmail(user: User | null): Promise<User | null> {
+async function applyRoleForSampleEmail(
+  user: User | null,
+): Promise<User | null> {
   if (!user || !user.email) return user;
 
   let role: AppRole | null = null;
@@ -25,7 +28,7 @@ async function applyRoleForSampleEmail(user: User | null): Promise<User | null> 
 
   if (!role) return user;
 
-  const existingMeta = (user.user_metadata || {}) as Record<string, unknown>;
+  const existingMeta = (user.user_metadata || {}) as UserMetadata;
 
   if (existingMeta.role === role) {
     return user;
@@ -58,46 +61,89 @@ async function applyRoleForSampleEmail(user: User | null): Promise<User | null> 
   return data.user ?? user;
 }
 
+function getRoleFromUser(user: User | null): AppRole | null {
+  if (!user) return null;
+  const metadata = (user.user_metadata || {}) as UserMetadata;
+  return metadata.role ?? null;
+}
+
+type AuthState = {
+  user: User | null;
+  role: AppRole | null;
+  loading: boolean;
+  error: AuthError | null;
+};
+
+const authStore: AuthState = {
+  user: null,
+  role: null,
+  loading: true,
+  error: null,
+};
+
+const listeners = new Set<() => void>();
+let initialized = false;
+
+function emitChange() {
+  listeners.forEach((listener) => listener());
+}
+
+function setAuthStoreState(next: Partial<AuthState>) {
+  if (typeof next.user !== "undefined") authStore.user = next.user;
+  if (typeof next.role !== "undefined") authStore.role = next.role;
+  if (typeof next.loading !== "undefined") authStore.loading = next.loading;
+  if (typeof next.error !== "undefined") authStore.error = next.error;
+  emitChange();
+}
+
+async function initializeAuthStore() {
+  if (initialized) return;
+  initialized = true;
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const userWithRole = await applyRoleForSampleEmail(user);
+    setAuthStoreState({
+      user: userWithRole,
+      role: getRoleFromUser(userWithRole),
+      loading: false,
+      error: null,
+    });
+  } catch (err) {
+    setAuthStoreState({
+      error: err as AuthError,
+      loading: false,
+    });
+  }
+
+  supabase.auth.onAuthStateChange(async (_event, session) => {
+    const authedUser = session?.user ?? null;
+    const userWithRole = await applyRoleForSampleEmail(authedUser);
+    setAuthStoreState({
+      user: userWithRole,
+      role: getRoleFromUser(userWithRole),
+      error: null,
+    });
+  });
+}
+
 export function useSupabaseAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<AppRole | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<AuthError | null>(null);
+  const [state, setState] = useState<AuthState>(authStore);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    void initializeAuthStore();
 
-        const userWithRole = await applyRoleForSampleEmail(user);
-        setUser(userWithRole);
-
-        const metaRole = (userWithRole?.user_metadata as { role?: AppRole } | null)?.role;
-        setRole(metaRole ?? null);
-      } catch (err) {
-        setError(err as AuthError);
-      } finally {
-        setLoading(false);
-      }
+    const listener = () => {
+      setState({ ...authStore });
     };
 
-    checkAuth();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const authedUser = session?.user ?? null;
-      const userWithRole = await applyRoleForSampleEmail(authedUser);
-      setUser(userWithRole);
-
-      const metaRole = (userWithRole?.user_metadata as { role?: AppRole } | null)?.role;
-      setRole(metaRole ?? null);
-    });
+    listeners.add(listener);
 
     return () => {
-      subscription?.unsubscribe();
+      listeners.delete(listener);
     };
   }, []);
 
@@ -108,15 +154,17 @@ export function useSupabaseAuth() {
     });
 
     if (error) {
-      setError(error);
+      setAuthStoreState({ error });
       return { data: null };
     }
 
     if (data.user) {
       const userWithRole = await applyRoleForSampleEmail(data.user);
-      setUser(userWithRole);
-      const metaRole = (userWithRole?.user_metadata as { role?: AppRole } | null)?.role;
-      setRole(metaRole ?? null);
+      setAuthStoreState({
+        user: userWithRole,
+        role: getRoleFromUser(userWithRole),
+        error: null,
+      });
     }
 
     return { data };
@@ -129,15 +177,17 @@ export function useSupabaseAuth() {
     });
 
     if (error) {
-      setError(error);
+      setAuthStoreState({ error });
       return { data: null };
     }
 
     if (data.user) {
       const userWithRole = await applyRoleForSampleEmail(data.user);
-      setUser(userWithRole);
-      const metaRole = (userWithRole?.user_metadata as { role?: AppRole } | null)?.role;
-      setRole(metaRole ?? null);
+      setAuthStoreState({
+        user: userWithRole,
+        role: getRoleFromUser(userWithRole),
+        error: null,
+      });
     }
 
     return { data };
@@ -145,10 +195,25 @@ export function useSupabaseAuth() {
 
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) setError(error);
-    setUser(null);
-    setRole(null);
+    if (error) {
+      setAuthStoreState({ error });
+      return;
+    }
+
+    setAuthStoreState({
+      user: null,
+      role: null,
+      error: null,
+    });
   }, []);
 
-  return { user, role, loading, error, signUp, signIn, signOut };
+  return {
+    user: state.user,
+    role: state.role,
+    loading: state.loading,
+    error: state.error,
+    signUp,
+    signIn,
+    signOut,
+  };
 }

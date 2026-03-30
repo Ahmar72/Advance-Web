@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase/client";
+import {
+  getMissingSchemaTable,
+  isMissingTableSchemaCacheError,
+} from "@/lib/utils/supabase-errors";
 
 interface Category {
   id: string;
@@ -23,12 +27,94 @@ interface Package {
   is_featured: boolean;
 }
 
+const FALLBACK_CATEGORIES: Category[] = [
+  { id: "fallback-electronics", name: "Electronics" },
+  { id: "fallback-vehicles", name: "Vehicles" },
+  { id: "fallback-properties", name: "Properties" },
+];
+
+const FALLBACK_CITIES: City[] = [
+  { id: "fallback-karachi", name: "Karachi" },
+  { id: "fallback-lahore", name: "Lahore" },
+  { id: "fallback-islamabad", name: "Islamabad" },
+];
+
+const FALLBACK_PACKAGES: Package[] = [
+  {
+    id: "fallback-basic",
+    name: "Basic",
+    duration_days: 7,
+    price: 1999,
+    is_featured: false,
+  },
+  {
+    id: "fallback-standard",
+    name: "Standard",
+    duration_days: 15,
+    price: 3999,
+    is_featured: false,
+  },
+  {
+    id: "fallback-premium",
+    name: "Premium",
+    duration_days: 30,
+    price: 6999,
+    is_featured: true,
+  },
+];
+
+const slugifyTitle = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60);
+
+const MAX_MEDIA_URLS = 8;
+
+function isValidHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isVideoLikeUrl(url: string): boolean {
+  if (!isValidHttpUrl(url)) return false;
+
+  const lower = url.toLowerCase();
+
+  return (
+    lower.includes("youtube.com") ||
+    lower.includes("youtu.be") ||
+    lower.includes("vimeo.com") ||
+    /\.(mp4|mov|webm|mkv|avi)(\?.*)?$/i.test(lower)
+  );
+}
+
+function isLikelyImageUrl(url: string): boolean {
+  if (!isValidHttpUrl(url)) return false;
+
+  if (isVideoLikeUrl(url)) return false;
+
+  if (/\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i.test(url)) {
+    return true;
+  }
+
+  // Accept common CDN/image endpoints without extensions.
+  return true;
+}
+
 export default function CreateAdPage() {
   const { user, loading: authLoading } = useSupabaseAuth();
   const router = useRouter();
 
   const [step, setStep] = useState<"details" | "media" | "package" | "review">(
-    "details"
+    "details",
   );
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -47,42 +133,102 @@ export default function CreateAdPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [usingFallbackOptions, setUsingFallbackOptions] = useState(false);
   const [dbOptionsError, setDbOptionsError] = useState<string | null>(null);
+  const [previewLoadError, setPreviewLoadError] = useState<
+    Record<string, boolean>
+  >({});
 
-  const fallbackCategories: Category[] = [
-    { id: "fallback-electronics", name: "Electronics" },
-    { id: "fallback-vehicles", name: "Vehicles" },
-    { id: "fallback-properties", name: "Properties" },
-  ];
+  const fetchOptions = useCallback(async () => {
+    try {
+      setUsingFallbackOptions(false);
+      setDbOptionsError(null);
+      setSelectedPackage("");
+      const optionErrors: string[] = [];
+      const missingTables = new Set<string>();
 
-  const fallbackCities: City[] = [
-    { id: "fallback-karachi", name: "Karachi" },
-    { id: "fallback-lahore", name: "Lahore" },
-    { id: "fallback-islamabad", name: "Islamabad" },
-  ];
+      const { data: catData, error: catError } = await supabase
+        .from("categories")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
 
-  const fallbackPackages: Package[] = [
-    {
-      id: "fallback-basic",
-      name: "Basic",
-      duration_days: 7,
-      price: 1999,
-      is_featured: false,
-    },
-    {
-      id: "fallback-standard",
-      name: "Standard",
-      duration_days: 15,
-      price: 3999,
-      is_featured: false,
-    },
-    {
-      id: "fallback-premium",
-      name: "Premium",
-      duration_days: 30,
-      price: 6999,
-      is_featured: true,
-    },
-  ];
+      if (catError) {
+        setCategories(FALLBACK_CATEGORIES);
+        setUsingFallbackOptions(true);
+        optionErrors.push(catError.message);
+        const table = getMissingSchemaTable(catError.message);
+        if (table) missingTables.add(table);
+      } else if (catData && catData.length > 0) {
+        setCategories(catData as Category[]);
+      } else {
+        setCategories(FALLBACK_CATEGORIES);
+        setUsingFallbackOptions(true);
+        optionErrors.push("No categories were returned from Supabase.");
+      }
+
+      const { data: cityData, error: cityError } = await supabase
+        .from("cities")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+
+      if (cityError) {
+        setCities(FALLBACK_CITIES);
+        setUsingFallbackOptions(true);
+        optionErrors.push(cityError.message);
+        const table = getMissingSchemaTable(cityError.message);
+        if (table) missingTables.add(table);
+      } else if (cityData && cityData.length > 0) {
+        setCities(cityData as City[]);
+      } else {
+        setCities(FALLBACK_CITIES);
+        setUsingFallbackOptions(true);
+        optionErrors.push("No cities were returned from Supabase.");
+      }
+
+      const { data: pkgData, error: pkgError } = await supabase
+        .from("packages")
+        .select("id, name, duration_days, price, is_featured")
+        .eq("is_active", true)
+        .order("duration_days");
+
+      if (pkgError) {
+        setPackages(FALLBACK_PACKAGES);
+        setUsingFallbackOptions(true);
+        optionErrors.push(pkgError.message);
+        const table = getMissingSchemaTable(pkgError.message);
+        if (table) missingTables.add(table);
+      } else if (pkgData && pkgData.length > 0) {
+        setPackages(pkgData as Package[]);
+      } else {
+        setPackages(FALLBACK_PACKAGES);
+        setUsingFallbackOptions(true);
+        optionErrors.push("No packages were returned from Supabase.");
+      }
+
+      if (optionErrors.length > 0) {
+        const hasMissingTable = optionErrors.some((message) =>
+          isMissingTableSchemaCacheError(message),
+        );
+
+        if (hasMissingTable && missingTables.size > 0) {
+          setDbOptionsError(
+            `Missing tables in connected Supabase project: ${Array.from(missingTables).join(", ")}.`,
+          );
+        } else {
+          setDbOptionsError(optionErrors[optionErrors.length - 1]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch options:", error);
+      setCategories(FALLBACK_CATEGORIES);
+      setCities(FALLBACK_CITIES);
+      setPackages(FALLBACK_PACKAGES);
+      setUsingFallbackOptions(true);
+      setDbOptionsError(
+        error instanceof Error ? error.message : "Failed to load DB options.",
+      );
+    }
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -93,78 +239,7 @@ export default function CreateAdPage() {
     }
 
     void fetchOptions();
-  }, [user, authLoading, router]);
-
-  const fetchOptions = async () => {
-    try {
-      setUsingFallbackOptions(false);
-      setDbOptionsError(null);
-      setSelectedPackage("");
-
-      const { data: catData, error: catError } = await supabase
-        .from("categories")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
-
-      if (catError) {
-        setCategories(fallbackCategories);
-        setUsingFallbackOptions(true);
-        setDbOptionsError(catError.message);
-      } else if (catData && catData.length > 0) {
-        setCategories(catData as Category[]);
-      } else {
-        setCategories(fallbackCategories);
-        setUsingFallbackOptions(true);
-        setDbOptionsError("No categories were returned from Supabase.");
-      }
-
-      const { data: cityData, error: cityError } = await supabase
-        .from("cities")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
-
-      if (cityError) {
-        setCities(fallbackCities);
-        setUsingFallbackOptions(true);
-        setDbOptionsError(cityError.message);
-      } else if (cityData && cityData.length > 0) {
-        setCities(cityData as City[]);
-      } else {
-        setCities(fallbackCities);
-        setUsingFallbackOptions(true);
-        setDbOptionsError("No cities were returned from Supabase.");
-      }
-
-      const { data: pkgData, error: pkgError } = await supabase
-        .from("packages")
-        .select("id, name, duration_days, price, is_featured")
-        .eq("is_active", true)
-        .order("duration_days");
-
-      if (pkgError) {
-        setPackages(fallbackPackages);
-        setUsingFallbackOptions(true);
-        setDbOptionsError(pkgError.message);
-      } else if (pkgData && pkgData.length > 0) {
-        setPackages(pkgData as Package[]);
-      } else {
-        setPackages(fallbackPackages);
-        setUsingFallbackOptions(true);
-        setDbOptionsError("No packages were returned from Supabase.");
-      }
-    } catch (error) {
-      console.error("Failed to fetch options:", error);
-      setCategories(fallbackCategories);
-      setCities(fallbackCities);
-      setPackages(fallbackPackages);
-      setUsingFallbackOptions(true);
-      setDbOptionsError(
-        error instanceof Error ? error.message : "Failed to load DB options."
-      );
-    }
-  };
+  }, [authLoading, user, router, fetchOptions]);
 
   const validateStep = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -180,9 +255,18 @@ export default function CreateAdPage() {
       if (!formData.category_id) newErrors.category = "Category is required";
       if (!formData.city_id) newErrors.city = "City is required";
     } else if (step === "media") {
-      const validUrls = formData.media_urls.filter((url) => url.trim());
-      if (validUrls.length === 0)
-        newErrors.media = "At least one media URL is required";
+      const validUrls = formData.media_urls
+        .map((url) => url.trim())
+        .filter(Boolean);
+
+      if (validUrls.length === 0) {
+        newErrors.media = "Please add at least one image URL";
+      } else if (validUrls.some((url) => isVideoLikeUrl(url))) {
+        newErrors.media =
+          "Only image URLs are allowed. Videos are not supported.";
+      } else if (validUrls.some((url) => !isLikelyImageUrl(url))) {
+        newErrors.media = "Please enter valid image URLs (http/https).";
+      }
     } else if (step === "package") {
       if (!selectedPackage) newErrors.package = "Please select a package";
     }
@@ -219,69 +303,75 @@ export default function CreateAdPage() {
       if (usingFallbackOptions) {
         throw new Error(
           dbOptionsError ||
-            "Database options are not loaded yet. Please ensure Supabase seed data is present."
+            "Database options are not loaded yet. Please verify your Supabase project schema and tables.",
         );
       }
 
-      const mediaUrls = formData.media_urls.filter((url) => url.trim());
+      const mediaUrls = formData.media_urls
+        .map((url) => url.trim())
+        .filter(Boolean);
+
+      if (mediaUrls.length === 0) {
+        throw new Error("At least one image URL is required.");
+      }
+
+      if (mediaUrls.some((url) => isVideoLikeUrl(url))) {
+        throw new Error(
+          "Video URLs are not allowed. Please provide image URLs only.",
+        );
+      }
 
       const { data: sessionData, error: sessionError } =
         await supabase.auth.getSession();
 
       if (sessionError || !sessionData.session) {
         throw new Error(
-          "Your session has expired. Please sign in again before creating a listing."
+          "Your session has expired. Please sign in again before creating a listing.",
         );
       }
 
-      const accessToken = sessionData.session.access_token;
-
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      if (!apiUrl) {
-        throw new Error("API URL is not configured.");
+      if (!sessionData.session.access_token) {
+        throw new Error("Missing access token. Please sign in again.");
       }
 
-      const createResponse = await fetch(`${apiUrl}/api/v1/ads`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
+      const slugBase = slugifyTitle(formData.title);
+      const slug = `${slugBase}-${Date.now().toString(36)}`;
+
+      const { data: createdAd, error: createError } = await supabase
+        .from("ads")
+        .insert({
+          user_id: user.id,
           title: formData.title,
           description: formData.description,
           category_id: formData.category_id,
           city_id: formData.city_id,
-          media_urls: mediaUrls,
-        }),
-      });
+          slug,
+          package_id: selectedPackage,
+          status: "under_review",
+        })
+        .select("id")
+        .single();
 
-      const createJson = await createResponse.json();
-      if (!createResponse.ok || !createJson?.data?.id) {
-        throw new Error(createJson?.error?.message || "Failed to create ad");
+      if (createError || !createdAd?.id) {
+        throw new Error(createError?.message || "Failed to create ad");
       }
 
-      const adId: string = createJson.data.id;
+      const adId = createdAd.id as string;
 
-      if (selectedPackage) {
-        const packageResponse = await fetch(
-          `${apiUrl}/api/v1/ads/${adId}/select-package`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ package_id: selectedPackage }),
-          }
-        );
+      if (mediaUrls.length > 0) {
+        const mediaPayload = mediaUrls.map((url) => ({
+          ad_id: adId,
+          original_url: url,
+          source_type: "external",
+          validation_status: "pending",
+        }));
 
-        const packageJson = await packageResponse.json();
-        if (!packageResponse.ok) {
-          throw new Error(
-            packageJson?.error?.message ||
-              "Ad created but failed to apply package."
-          );
+        const { error: mediaError } = await supabase
+          .from("ad_media")
+          .insert(mediaPayload);
+
+        if (mediaError) {
+          throw new Error(mediaError.message);
         }
       }
 
@@ -289,19 +379,11 @@ export default function CreateAdPage() {
     } catch (error) {
       console.error("Error:", error);
       setErrors({
-        submit:
-          error instanceof Error ? error.message : "Failed to create ad",
+        submit: error instanceof Error ? error.message : "Failed to create ad",
       });
     } finally {
       setLoading(false);
     }
-  };
-
-  const addMediaUrl = () => {
-    setFormData((prev) => ({
-      ...prev,
-      media_urls: [...prev.media_urls, ""],
-    }));
   };
 
   const removeMediaUrl = (index: number) => {
@@ -311,8 +393,15 @@ export default function CreateAdPage() {
     }));
   };
 
+  const addMediaUrl = () => {
+    setFormData((prev) => ({
+      ...prev,
+      media_urls: [...prev.media_urls, ""].slice(0, MAX_MEDIA_URLS),
+    }));
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100">
+    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100">
       {/* Header */}
       <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 py-5">
@@ -320,8 +409,15 @@ export default function CreateAdPage() {
             Create New Listing
           </h1>
           <p className="text-sm text-zinc-500 mt-1">
-            Step {step === "details" ? 1 : step === "media" ? 2 : step === "package" ? 3 : 4} of
-            4
+            Step{" "}
+            {step === "details"
+              ? 1
+              : step === "media"
+                ? 2
+                : step === "package"
+                  ? 3
+                  : 4}{" "}
+            of 4
           </p>
         </div>
       </div>
@@ -351,8 +447,8 @@ export default function CreateAdPage() {
         {usingFallbackOptions ? (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm space-y-3">
             <div>
-              Categories/Cities/Packages are using fallback demo options because the API returned no
-              data.
+              Categories/Cities/Packages are using fallback demo options because
+              Supabase returned no usable data.
             </div>
             {dbOptionsError ? (
               <div className="text-amber-700/90">{dbOptionsError}</div>
@@ -365,10 +461,6 @@ export default function CreateAdPage() {
               >
                 Retry loading options
               </button>
-              <div className="text-amber-700/90">
-                Tip: run `001_init_schema.sql` + `002_seed_dummy_data.sql` in Supabase SQL Editor for
-                the same project as your backend.
-              </div>
             </div>
           </div>
         ) : null}
@@ -401,14 +493,19 @@ export default function CreateAdPage() {
               <textarea
                 value={formData.description}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, description: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
                 }
                 placeholder="Describe your item in detail..."
                 rows={6}
                 className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
               {errors.description && (
-                <p className="text-rose-600 text-sm mt-1">{errors.description}</p>
+                <p className="text-rose-600 text-sm mt-1">
+                  {errors.description}
+                </p>
               )}
             </div>
 
@@ -420,7 +517,10 @@ export default function CreateAdPage() {
                 <select
                   value={formData.category_id}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, category_id: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      category_id: e.target.value,
+                    }))
                   }
                   className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -432,7 +532,9 @@ export default function CreateAdPage() {
                   ))}
                 </select>
                 {errors.category && (
-                  <p className="text-rose-600 text-sm mt-1">{errors.category}</p>
+                  <p className="text-rose-600 text-sm mt-1">
+                    {errors.category}
+                  </p>
                 )}
               </div>
 
@@ -443,7 +545,10 @@ export default function CreateAdPage() {
                 <select
                   value={formData.city_id}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, city_id: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      city_id: e.target.value,
+                    }))
                   }
                   className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -462,61 +567,96 @@ export default function CreateAdPage() {
           </div>
         )}
 
-        {/* Step 2: Media URLs */}
+        {/* Step 2: Image URLs */}
         {step === "media" && (
           <div className="space-y-6">
             <div>
               <label className="block text-zinc-800 font-medium mb-4">
-                Media URLs *
+                Image URLs *
               </label>
               <p className="text-zinc-500 text-sm mb-4">
-                Add external image or video URLs (YouTube, direct image links)
+                Add public image URLs only (max {MAX_MEDIA_URLS}). Video URLs
+                are not allowed.
               </p>
 
               <div className="space-y-3">
-                {formData.media_urls.map((url, index) => (
-                  <div key={index} className="flex gap-2">
-                    <input
-                      type="url"
-                      value={url}
-                      onChange={(e) => {
-                        const newUrls = [...formData.media_urls];
-                        newUrls[index] = e.target.value;
-                        setFormData((prev) => ({ ...prev, media_urls: newUrls }));
-                      }}
-                      placeholder={`URL ${index + 1} (e.g., https://...)`}
-                      className="flex-1 bg-white border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {formData.media_urls.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeMediaUrl(index)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 rounded-md text-xs font-medium transition"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+                {formData.media_urls.map((url, index) => {
+                  const key = `${index}-${url}`;
+                  const failed = previewLoadError[key] === true;
+                  const canPreview =
+                    isLikelyImageUrl(url.trim()) && url.trim() !== "";
 
-              {errors.media && (
-                <p className="text-rose-600 text-sm mt-2">{errors.media}</p>
-              )}
+                  return (
+                    <div
+                      key={index}
+                      className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2"
+                    >
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={(e) => {
+                          const nextUrls = [...formData.media_urls];
+                          nextUrls[index] = e.target.value;
+                          setFormData((prev) => ({
+                            ...prev,
+                            media_urls: nextUrls,
+                          }));
+                        }}
+                        placeholder="https://example.com/image.jpg"
+                        className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+
+                      {canPreview && !failed ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={url.trim()}
+                          alt={`Image preview ${index + 1}`}
+                          className="w-full h-36 object-cover rounded-md border border-zinc-200"
+                          onError={() =>
+                            setPreviewLoadError((prev) => ({
+                              ...prev,
+                              [key]: true,
+                            }))
+                          }
+                        />
+                      ) : url.trim() ? (
+                        <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500">
+                          Preview unavailable for this URL.
+                        </div>
+                      ) : null}
+
+                      {formData.media_urls.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeMediaUrl(index)}
+                          className="text-[11px] font-medium text-rose-600 hover:text-rose-700"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
 
               <button
                 type="button"
                 onClick={addMediaUrl}
-                className="mt-4 inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-zinc-800 transition"
+                disabled={formData.media_urls.length >= MAX_MEDIA_URLS}
+                className="mt-4 inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-zinc-800 disabled:opacity-50 transition"
               >
                 + Add Another URL
               </button>
+
+              {errors.media && (
+                <p className="text-rose-600 text-sm mt-2">{errors.media}</p>
+              )}
             </div>
 
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
               <p className="text-blue-900 text-sm">
-                <strong>Tip:</strong> For YouTube videos, paste the full URL (e.g.,
-                https://youtube.com/watch?v=...). We'll auto-generate thumbnails.
+                <strong>Tip:</strong> Use direct image links (jpg, png, webp,
+                etc.) that are publicly accessible.
               </p>
             </div>
           </div>
@@ -563,7 +703,9 @@ export default function CreateAdPage() {
 
                   {selectedPackage === pkg.id && (
                     <div className="mt-4 pt-3 border-t border-blue-100">
-                      <p className="text-blue-700 text-xs font-semibold">✓ Selected</p>
+                      <p className="text-blue-700 text-xs font-semibold">
+                        ✓ Selected
+                      </p>
                     </div>
                   )}
                 </div>
@@ -601,7 +743,10 @@ export default function CreateAdPage() {
                   <div>
                     <p className="text-zinc-500 text-xs">Category</p>
                     <p className="text-zinc-900 font-medium">
-                      {categories.find((c) => c.id === formData.category_id)?.name}
+                      {
+                        categories.find((c) => c.id === formData.category_id)
+                          ?.name
+                      }
                     </p>
                   </div>
                   <div>
@@ -613,14 +758,34 @@ export default function CreateAdPage() {
                 </div>
 
                 <div>
-                  <p className="text-zinc-500 text-xs">Media URLs</p>
-                  <div className="space-y-1 mt-1 text-xs">
+                  <p className="text-zinc-500 text-xs">Image URLs</p>
+                  <div className="space-y-3 mt-2">
                     {formData.media_urls
-                      .filter((url) => url.trim())
+                      .map((url) => url.trim())
+                      .filter(Boolean)
                       .map((url, i) => (
-                        <p key={i} className="text-blue-600 truncate">
-                          {i + 1}. {url}
-                        </p>
+                        <div
+                          key={`${url}-${i}`}
+                          className="rounded-lg border border-zinc-200 bg-zinc-50 p-3"
+                        >
+                          <div className="text-[11px] font-medium text-zinc-500 mb-2">
+                            Image {i + 1}
+                          </div>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`Review image ${i + 1}`}
+                            className="w-full max-h-48 object-cover rounded-md border border-zinc-200"
+                          />
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 block text-xs text-blue-600 hover:underline truncate"
+                          >
+                            {url}
+                          </a>
+                        </div>
                       ))}
                   </div>
                 </div>
@@ -642,8 +807,8 @@ export default function CreateAdPage() {
             )}
 
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-xs text-blue-900">
-              <strong>Next Step:</strong> After submission, your ad will enter moderation. You'll
-              receive a notification once approved.
+              <strong>Next Step:</strong> After submission, your ad will enter
+              moderation. You&apos;ll receive a notification once approved.
             </div>
           </div>
         )}

@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase/client";
 
 type SearchResult = {
   id: string;
@@ -17,11 +18,27 @@ type SearchResult = {
   created_at: string;
 };
 
-export default function CityPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
+type CitySearchRow = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+  category: { name: string } | { name: string }[] | null;
+  city: { name: string } | { name: string }[] | null;
+  package: { price: number } | { price: number }[] | null;
+  seller:
+    | { full_name: string | null; email: string; is_verified_seller?: boolean }
+    | {
+        full_name: string | null;
+        email: string;
+        is_verified_seller?: boolean;
+      }[]
+    | null;
+  media: Array<{ original_url: string; thumbnail_url: string | null }> | null;
+};
+
+export default function CityPage({ params }: { params: { slug: string } }) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,23 +53,61 @@ export default function CityPage({
         setLoading(true);
         setError(null);
 
-        const paramsObj = new URLSearchParams({
-          page: String(page),
-          limit: '20',
-          sortBy: 'relevance',
-          city: slug,
-        });
+        const pageSize = 20;
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
 
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/search?${paramsObj.toString()}`
-        );
-        if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+        const {
+          data,
+          error: queryError,
+          count,
+        } = await supabase
+          .from("ads")
+          .select(
+            "id, title, description, status, created_at, category:categories(name), city:cities!inner(name, slug), package:packages(price), seller:users(full_name, email, is_verified_seller), media:ad_media(original_url, thumbnail_url)",
+            { count: "exact" },
+          )
+          .eq("status", "published")
+          .eq("city.slug", slug)
+          .order("created_at", { ascending: false })
+          .range(from, to);
 
-        const json = await res.json();
-        setResults(json.data?.results || []);
-        setTotalPages(json.data?.pages || 1);
+        if (queryError) throw queryError;
+
+        const rows = (data || []) as unknown as CitySearchRow[];
+        const mapped: SearchResult[] = rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          price: Number(
+            (Array.isArray(row.package)
+              ? row.package[0]?.price
+              : row.package?.price) || 0,
+          ),
+          category: Array.isArray(row.category)
+            ? row.category[0]?.name || "Category"
+            : row.category?.name || "Category",
+          city: Array.isArray(row.city)
+            ? row.city[0]?.name || "City"
+            : row.city?.name || "City",
+          image_url:
+            row.media?.[0]?.thumbnail_url ||
+            row.media?.[0]?.original_url ||
+            null,
+          seller_name: Array.isArray(row.seller)
+            ? row.seller[0]?.full_name || row.seller[0]?.email || "Unknown"
+            : row.seller?.full_name || row.seller?.email || "Unknown",
+          seller_verified: Array.isArray(row.seller)
+            ? Boolean(row.seller[0]?.is_verified_seller)
+            : Boolean(row.seller?.is_verified_seller),
+          status: row.status,
+          created_at: row.created_at,
+        }));
+
+        setResults(mapped);
+        setTotalPages(Math.max(1, Math.ceil((count || 0) / pageSize)));
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load listings');
+        setError(e instanceof Error ? e.message : "Failed to load listings");
       } finally {
         setLoading(false);
       }
@@ -114,8 +169,10 @@ export default function CityPage({
                           Rs {result.price.toLocaleString()}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">
-                          by{' '}
-                          <span className="text-slate-400">{result.seller_name}</span>
+                          by{" "}
+                          <span className="text-slate-400">
+                            {result.seller_name}
+                          </span>
                           {result.seller_verified ? (
                             <span className="text-green-400 ml-1">✓</span>
                           ) : null}
@@ -155,4 +212,3 @@ export default function CityPage({
     </div>
   );
 }
-
