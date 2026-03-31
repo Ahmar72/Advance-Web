@@ -22,7 +22,9 @@ type AdDetailMinimalRow = {
 
 type PaymentMethod = "bank_transfer" | "card" | "mobile_wallet" | "cash";
 
-const PAYABLE_STATUSES = ["under_review", "payment_pending"];
+// Client can only proceed to payment after moderator and admin approval
+// which sets the ad status to "payment_pending".
+const PAYABLE_STATUSES = ["payment_pending"] as const;
 
 export default function PaymentPage() {
   const { user, isLoading } = useAuth();
@@ -39,6 +41,7 @@ export default function PaymentPage() {
   const [transactionRef, setTransactionRef] = useState<string>("");
   const [senderName, setSenderName] = useState<string>("");
   const [screenshotUrl, setScreenshotUrl] = useState<string>("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -109,6 +112,34 @@ export default function PaymentPage() {
         throw new Error("Please enter a valid payment amount.");
       }
 
+      let finalScreenshotUrl = screenshotUrl.trim() || null;
+
+      // If user provided an image file, upload it to Supabase Storage
+      // and use the public URL as the proof.
+      if (proofFile) {
+        const ext = proofFile.name.split(".").pop() || "jpg";
+        const path = `proofs/${adId}/${Date.now().toString(36)}.${ext}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("payment_proofs")
+          .upload(path, proofFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(
+            uploadError.message || "Failed to upload payment screenshot.",
+          );
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("payment_proofs")
+          .getPublicUrl(uploadData.path);
+
+        finalScreenshotUrl = publicUrlData.publicUrl || finalScreenshotUrl;
+      }
+
       const { error: insertError } = await supabase.from("payments").insert({
         ad_id: adId,
         package_id: ad.package.id,
@@ -116,7 +147,7 @@ export default function PaymentPage() {
         method,
         transaction_ref: transactionRef,
         sender_name: senderName,
-        screenshot_url: screenshotUrl.trim() ? screenshotUrl.trim() : null,
+        screenshot_url: finalScreenshotUrl,
         status: "pending",
       });
 
@@ -179,6 +210,15 @@ export default function PaymentPage() {
             <div className="mt-2 text-zinc-600">
               Current status: {ad.status}
             </div>
+            {ad.status === "under_review" || ad.status === "scheduled" ? (
+              <div className="mt-3 text-sm text-zinc-500 max-w-xl mx-auto">
+                Your ad is still being reviewed by our team. Once it is
+                approved by an admin, its status will change to
+                <span className="font-semibold"> payment_pending</span> and
+                you&apos;ll see a button on your dashboard to proceed with
+                payment and upload your payment screenshot.
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
@@ -304,6 +344,21 @@ export default function PaymentPage() {
                   onChange={(e) => setScreenshotUrl(e.target.value)}
                   placeholder="https://example.com/proof.jpg"
                   className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                />
+              </label>
+
+              <label className="mt-4 block">
+                <div className="mb-1.5 text-sm font-semibold text-zinc-700">
+                  Or upload screenshot image
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setProofFile(file);
+                  }}
+                  className="block w-full text-sm text-zinc-700 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-cyan-700"
                 />
               </label>
 

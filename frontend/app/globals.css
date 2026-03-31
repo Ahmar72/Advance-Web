@@ -128,3 +128,31 @@
     @apply font-sans;
   }
 }
+
+/* Neon accent borders for dashboard cards */
+.neon-card {
+  transition: box-shadow 150ms ease, border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+html.dark .neon-card {
+  border-color: oklch(0.79 0.08 264);
+}
+
+html.dark.accent-neon-green .neon-card {
+  border-color: oklch(0.85 0.18 135);
+  box-shadow: 0 0 0 1px rgba(190, 242, 100, 0.4),
+    0 0 24px rgba(190, 242, 100, 0.6);
+}
+
+html.dark.accent-neon-pink .neon-card {
+  border-color: oklch(0.8 0.25 345);
+  box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.45),
+    0 0 24px rgba(244, 114, 182, 0.7);
+}
+
+html.dark.accent-neon-blue .neon-card {
+  border-color: oklch(0.83 0.21 230);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45),
+    0 0 24px rgba(56, 189, 248, 0.7);
+}

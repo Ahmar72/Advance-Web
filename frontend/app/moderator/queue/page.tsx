@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
 import { supabase } from "@/lib/supabase/client";
+import { ModeratorShell } from "@/components/moderator/ModeratorShell";
 
 interface ReviewItem {
   id: string;
@@ -34,7 +35,11 @@ type QueueMediaRow = {
   original_url: string;
 };
 
-const MODERATION_QUEUE_STATUSES = ["under_review", "payment_pending"];
+// Moderators should see ads that clients have just submitted for review.
+// New ads are created as "under_review", but older ads might still exist
+// in a "draft" state. Include both, and for drafts we will first promote
+// them to "under_review" before calling the moderation RPC.
+const MODERATION_QUEUE_STATUSES = ["under_review", "draft"];
 
 export default function ModeratorQueuePage() {
   const { user, role, loading } = useSupabaseAuth();
@@ -63,7 +68,7 @@ export default function ModeratorQueuePage() {
     }
   }, [user, role]);
 
-  const fetchQueue = async () => {
+  const fetchQueue = useCallback(async () => {
     try {
       setQueueError(null);
       const { data, error } = await supabase
@@ -141,12 +146,97 @@ export default function ModeratorQueuePage() {
     } finally {
       setLoadingQueue(false);
     }
-  };
+  }, []);
+
+  // Live updates: whenever ads in the moderation statuses are inserted,
+  // updated, or deleted, refresh the queue so moderators always see the
+  // latest client submissions.
+  useEffect(() => {
+    if (
+      !user ||
+      (role !== "moderator" && role !== "admin" && role !== "super_admin")
+    ) {
+      return;
+    }
+
+    const channel = supabase
+      .channel("moderation-ads")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ads",
+        },
+        (payload) => {
+          const nextStatus = (payload.new as { status?: string }).status;
+          if (nextStatus && MODERATION_QUEUE_STATUSES.includes(nextStatus)) {
+            void fetchQueue();
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "ads",
+        },
+        (payload) => {
+          const nextStatus = (payload.new as { status?: string }).status;
+          const prevStatus = (payload.old as { status?: string }).status;
+          const wasInQueue =
+            prevStatus && MODERATION_QUEUE_STATUSES.includes(prevStatus);
+          const nowInQueue =
+            nextStatus && MODERATION_QUEUE_STATUSES.includes(nextStatus);
+          if (wasInQueue || nowInQueue) {
+            void fetchQueue();
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "ads",
+        },
+        () => {
+          void fetchQueue();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, role, fetchQueue]);
 
   const handleApprove = async (adId: string) => {
     const remark = (notes[adId] || "").trim();
 
     try {
+      const current = queue.find((item) => item.id === adId);
+
+      if (current?.status === "draft") {
+        const { error: promoteError } = await supabase
+          .from("ads")
+          .update({ status: "under_review" })
+          .eq("id", adId)
+          .eq("status", "draft");
+
+        if (promoteError) {
+          console.error(
+            "Failed to move draft ad into moderation queue:",
+            promoteError.message,
+          );
+          setQueueError(
+            `Failed to prepare ad for moderation: ${promoteError.message}`,
+          );
+          return;
+        }
+      }
+
       const { error } = await supabase.rpc("moderate_ad", {
         p_ad_id: adId,
         p_decision: "scheduled",
@@ -174,6 +264,27 @@ export default function ModeratorQueuePage() {
     }
 
     try {
+      const current = queue.find((item) => item.id === adId);
+
+      if (current?.status === "draft") {
+        const { error: promoteError } = await supabase
+          .from("ads")
+          .update({ status: "under_review" })
+          .eq("id", adId)
+          .eq("status", "draft");
+
+        if (promoteError) {
+          console.error(
+            "Failed to move draft ad into moderation queue:",
+            promoteError.message,
+          );
+          setQueueError(
+            `Failed to prepare ad for moderation: ${promoteError.message}`,
+          );
+          return;
+        }
+      }
+
       const { error } = await supabase.rpc("moderate_ad", {
         p_ad_id: adId,
         p_decision: "rejected",
@@ -229,28 +340,18 @@ export default function ModeratorQueuePage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-slate-950">
         <p className="text-base text-zinc-500">Loading moderation queue...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100">
-      {/* Header */}
-      <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-1">
-          <h1 className="text-2xl md:text-3xl font-bold text-zinc-900">
-            Moderation Panel
-          </h1>
-          <p className="text-sm text-zinc-500">
-            Review ads for content quality, policy fit, and suspicious media.
-          </p>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <ModeratorShell
+      title="Moderation Panel"
+      subtitle="Review ads for content quality, policy fit, and suspicious media."
+    >
+      <div className="space-y-6">
         {queueError ? (
           <div className="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {queueError}
@@ -262,10 +363,10 @@ export default function ModeratorQueuePage() {
             Loading queue...
           </div>
         ) : queue.length === 0 ? (
-          <div className="bg-white border border-zinc-200 rounded-2xl p-10 text-center shadow-sm">
+          <div className="neon-card bg-white border border-zinc-200 rounded-2xl p-10 text-center shadow-sm">
             <p className="text-zinc-700 text-base">No ads to review</p>
             <p className="text-zinc-500 text-sm mt-1">
-              No ads in under review or payment pending right now.
+              No ads are currently awaiting moderation.
             </p>
           </div>
         ) : (
@@ -273,7 +374,7 @@ export default function ModeratorQueuePage() {
             {queue.map((item) => (
               <div
                 key={item.id}
-                className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm"
+                className="neon-card bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm"
               >
                 <div className="grid md:grid-cols-3 gap-6">
                   {/* Preview & media */}
@@ -373,6 +474,6 @@ export default function ModeratorQueuePage() {
           </div>
         )}
       </div>
-    </div>
+    </ModeratorShell>
   );
 }

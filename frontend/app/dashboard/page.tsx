@@ -9,6 +9,7 @@ import { formatIsoDate } from "@/lib/utils/date";
 import { AD_STATUS_COLORS } from "@/lib/utils/ad-status";
 import { isMissingTableSchemaCacheError } from "@/lib/utils/supabase-errors";
 import { TopMessageBanner } from "@/components/TopMessageBanner";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
 interface UserAd {
   id: string;
@@ -121,18 +122,31 @@ function DashboardPageInner() {
 
   const handleDelete = async (id: string) => {
     const confirmDelete = window.confirm(
-      "Are you sure you want to delete this draft ad?",
+      "Are you sure you want to delete this ad?",
     );
     if (!confirmDelete || !user) return;
 
     try {
       setDeletingId(id);
+
+      // Log a deletion event for admins/moderators to see in audit logs.
+      const { error: logError } = await supabase.from("audit_logs").insert({
+        action_type: "user_delete_ad",
+        target_type: "ad",
+        target_id: id,
+        note: `Ad ${id} deleted by user ${user.id}`,
+      });
+
+      if (logError) {
+        console.error("Failed to log ad deletion", logError.message);
+      }
+
       const { error } = await supabase
         .from("ads")
         .delete()
         .eq("id", id)
         .eq("user_id", user.id)
-        .eq("status", "draft");
+        .in("status", ["draft", "under_review", "rejected"]);
 
       if (error) {
         console.error("Failed to delete ad", error.message);
@@ -172,9 +186,9 @@ function DashboardPageInner() {
   const topTone = errorMessage ? "error" : successMessage ? "success" : "info";
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100 flex">
+    <div className="min-h-screen flex bg-zinc-50 dark:bg-slate-900">
       {/* Sidebar */}
-      <aside className="hidden md:flex md:flex-col w-64 border-r border-zinc-200 bg-white/90 backdrop-blur-sm">
+      <aside className="hidden md:flex md:flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm">
         <div className="px-4 py-5 border-b border-zinc-200">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-semibold">
@@ -188,12 +202,12 @@ function DashboardPageInner() {
                 .toUpperCase()}
             </div>
             <div>
-              <div className="text-sm font-semibold text-zinc-900 truncate">
+              <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 truncate">
                 {(user.user_metadata?.full_name as string | undefined) ||
                   (user.user_metadata?.name as string | undefined) ||
                   user.email}
               </div>
-              <div className="text-xs text-zinc-500 capitalize">
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 capitalize">
                 {role || "client"}
               </div>
             </div>
@@ -201,13 +215,25 @@ function DashboardPageInner() {
         </div>
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto text-sm">
           <Link
+            href="/dashboard"
+            className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition"
+          >
+            Home
+          </Link>
+          <Link
+            href="/dashboard/history"
+            className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition"
+          >
+            History
+          </Link>
+          <Link
             href="/settings"
-            className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-700 hover:bg-zinc-100 transition"
+            className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition"
           >
             Account Settings
           </Link>
         </nav>
-        <div className="px-4 py-3 border-t border-zinc-200">
+        <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800">
           <button
             type="button"
             onClick={handleLogout}
@@ -220,17 +246,18 @@ function DashboardPageInner() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 w-full">
-        <div className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-20">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-zinc-900">
+              <h1 className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-zinc-50">
                 My Listings
               </h1>
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 Manage your ads and track their status
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <ThemeSwitcher />
               <Link
                 href="/create-ad"
                 className="bg-blue-600 hover:bg-blue-700 text-white px-5 md:px-6 py-2.5 rounded-lg text-sm md:text-base font-semibold shadow-sm transition"
@@ -254,25 +281,25 @@ function DashboardPageInner() {
 
           {/* Stats */}
           <div className="grid md:grid-cols-4 gap-4">
-            <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
               <p className="text-xs font-medium text-zinc-500">Total Ads</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900">
                 {ads.length}
               </p>
             </div>
-            <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
               <p className="text-xs font-medium text-zinc-500">Published</p>
               <p className="mt-1 text-2xl font-bold text-emerald-600">
                 {ads.filter((a) => a.status === "published").length}
               </p>
             </div>
-            <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
               <p className="text-xs font-medium text-zinc-500">Under Review</p>
               <p className="mt-1 text-2xl font-bold text-amber-500">
                 {ads.filter((a) => a.status === "under_review").length}
               </p>
             </div>
-            <div className="bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 p-4 rounded-xl shadow-sm">
               <p className="text-xs font-medium text-zinc-500">Drafts</p>
               <p className="mt-1 text-2xl font-bold text-zinc-600">
                 {ads.filter((a) => a.status === "draft").length}
@@ -286,7 +313,7 @@ function DashboardPageInner() {
               Loading your ads...
             </div>
           ) : ads.length === 0 ? (
-            <div className="bg-white border border-zinc-200 rounded-xl p-10 text-center shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 rounded-xl p-10 text-center shadow-sm">
               <p className="text-sm text-zinc-600 mb-4">
                 You haven&apos;t posted any ads yet
               </p>
@@ -298,7 +325,7 @@ function DashboardPageInner() {
               </Link>
             </div>
           ) : (
-            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
               <table className="w-full">
                 <thead className="border-b border-zinc-200 bg-zinc-50/80">
                   <tr>
@@ -351,7 +378,9 @@ function DashboardPageInner() {
                         {formatIsoDate(ad.created_at)}
                       </td>
                       <td className="px-6 py-4">
-                        {ad.status === "draft" ? (
+                        {ad.status === "draft" ||
+                        ad.status === "under_review" ||
+                        ad.status === "rejected" ? (
                           <div className="flex items-center gap-3">
                             <Link
                               href={`/ads/${ad.id}/edit`}
@@ -370,10 +399,10 @@ function DashboardPageInner() {
                           </div>
                         ) : ad.status === "payment_pending" ? (
                           <Link
-                            href={`/packages?adId=${ad.id}`}
+                            href={`/ads/${ad.id}/payment`}
                             className="text-xs md:text-sm font-medium text-blue-600 hover:text-blue-700"
                           >
-                            You can pay for your plan
+                            Proceed to payment
                           </Link>
                         ) : (
                           <span className="text-zinc-400 text-sm">—</span>

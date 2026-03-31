@@ -8,7 +8,9 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { supabase } from "@/lib/supabase/client";
 
 type PaymentRow = {
-  id: string;
+  id: string; // unique row id for React
+  paymentId: string | null;
+  hasPayment: boolean;
   ad: { id: string; title: string; slug: string; user_id: string };
   user: { id: string; email: string; full_name: string | null };
   amount: number;
@@ -61,6 +63,18 @@ type PaymentRejectRow = {
   ad_id: string;
 };
 
+type PendingAdRow = {
+  id: string;
+  title: string;
+  slug: string;
+  user_id: string;
+  created_at: string;
+  owner:
+    | { id: string; email: string; full_name: string | null }
+    | { id: string; email: string; full_name: string | null }[]
+    | null;
+};
+
 export default function PaymentQueuePage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -78,27 +92,74 @@ export default function PaymentQueuePage() {
     }
   }, [user, isLoading, router]);
 
+  const deleteAd = async (adId: string) => {
+    if (!window.confirm("Are you sure you want to delete this ad?")) {
+      return;
+    }
+
+    try {
+      const { error: logError } = await supabase.from("audit_logs").insert({
+        action_type: "admin_delete_ad",
+        target_type: "ad",
+        target_id: adId,
+        note: `Ad ${adId} deleted by admin ${user?.id ?? "unknown"} from payment queue`,
+      });
+
+      if (logError) {
+        console.error("Failed to log admin ad deletion", logError.message);
+      }
+
+      const { error } = await supabase.from("ads").delete().eq("id", adId);
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      setPayments((prev) => prev.filter((p) => p.ad.id !== adId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete ad");
+    }
+  };
+
   const fetchQueue = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const { data, error: queryError } = await supabase
-        .from("payments")
-        .select(
-          "id, amount, method, transaction_ref, sender_name, screenshot_url, status, rejection_reason, created_at, ad:ads!inner(id, title, slug, user_id, owner:users(id, email, full_name))",
-        )
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const [paymentsRes, pendingAdsRes] = await Promise.all([
+        supabase
+          .from("payments")
+          .select(
+            "id, amount, method, transaction_ref, sender_name, screenshot_url, status, rejection_reason, created_at, ad:ads!inner(id, title, slug, user_id, owner:users(id, email, full_name))",
+          )
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("ads")
+          .select(
+            "id, title, slug, user_id, created_at, owner:users(id, email, full_name)",
+          )
+          .eq("status", "payment_pending")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
 
-      if (queryError) throw new Error(queryError.message);
+      if (paymentsRes.error) throw new Error(paymentsRes.error.message);
+      if (pendingAdsRes.error) throw new Error(pendingAdsRes.error.message);
 
-      const rows = (data || []) as unknown as PaymentQueueQueryRow[];
-      const mapped: PaymentRow[] = rows.map((row) => {
+      const paymentRows = (paymentsRes.data || []) as unknown as PaymentQueueQueryRow[];
+      const pendingAds = (pendingAdsRes.data || []) as unknown as PendingAdRow[];
+
+      const byAdId = new Map<string, PaymentRow>();
+
+      const mappedPayments: PaymentRow[] = paymentRows.map((row) => {
         const ad = Array.isArray(row.ad) ? row.ad[0] : row.ad;
-        return {
+        const paymentRow: PaymentRow = {
           id: row.id,
+          paymentId: row.id,
+          hasPayment: true,
           ad: {
             id: ad?.id || "",
             title: ad?.title || "Ad",
@@ -119,9 +180,43 @@ export default function PaymentQueuePage() {
           rejection_reason: row.rejection_reason,
           created_at: row.created_at,
         };
+        if (paymentRow.ad.id) {
+          byAdId.set(paymentRow.ad.id, paymentRow);
+        }
+        return paymentRow;
       });
 
-      setPayments(mapped);
+      const mappedPendingAds: PaymentRow[] = pendingAds
+        .filter((ad) => !byAdId.has(ad.id))
+        .map((ad) => {
+          const owner = Array.isArray(ad.owner) ? ad.owner[0] : ad.owner;
+          return {
+            id: `ad-${ad.id}`,
+            paymentId: null,
+            hasPayment: false,
+            ad: {
+              id: ad.id,
+              title: ad.title || "Ad",
+              slug: ad.slug || "",
+              user_id: ad.user_id,
+            },
+            user: {
+              id: owner?.id || ad.user_id,
+              email: owner?.email || "",
+              full_name: owner?.full_name || null,
+            },
+            amount: 0,
+            method: "",
+            transaction_ref: "",
+            sender_name: "",
+            screenshot_url: null,
+            status: "payment_pending",
+            rejection_reason: null,
+            created_at: ad.created_at,
+          };
+        });
+
+      setPayments([...mappedPayments, ...mappedPendingAds]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load payments");
     } finally {
@@ -249,7 +344,8 @@ export default function PaymentQueuePage() {
           <div className="bg-white border border-zinc-200 rounded-2xl p-10 text-center shadow-sm">
             <p className="text-zinc-700 text-base">No pending payments</p>
             <p className="text-zinc-500 text-sm mt-2">
-              All payment proofs are currently verified or rejected.
+              All payment proofs are currently verified or rejected, and no ads
+              are waiting for payment.
             </p>
           </div>
         ) : (
@@ -310,17 +406,31 @@ export default function PaymentQueuePage() {
                     >
                       View Ad
                     </Link>
+                    {p.hasPayment ? (
+                      <>
+                        <button
+                          onClick={() => verify(p.paymentId as string, true)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-sm transition"
+                        >
+                          ✓ Verify & Publish
+                        </button>
+                        <button
+                          onClick={() => reject(p.paymentId as string)}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold shadow-sm transition"
+                        >
+                          ✗ Reject Payment
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-zinc-500">
+                        Waiting for client to submit payment proof.
+                      </p>
+                    )}
                     <button
-                      onClick={() => verify(p.id, true)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-sm transition"
+                      onClick={() => deleteAd(p.ad.id)}
+                      className="px-4 py-2 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg text-sm font-semibold shadow-sm transition"
                     >
-                      ✓ Approve
-                    </button>
-                    <button
-                      onClick={() => reject(p.id)}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold shadow-sm transition"
-                    >
-                      ✗ Reject
+                      Delete ad
                     </button>
                   </div>
                 </div>

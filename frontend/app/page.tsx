@@ -124,23 +124,23 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100">
+    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100 dark:from-slate-900 dark:to-slate-950">
       {/* Navigation */}
-      <nav className="border-b border-zinc-200 bg-white/80 backdrop-blur sticky top-0 z-50">
+      <nav className="border-b border-zinc-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold bg-linear-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
+          <div className="text-2xl font-bold bg-linear-to-r from-blue-500 to-indigo-400 bg-clip-text text-transparent">
             AdFlow Pro
           </div>
           <div className="flex gap-4 items-center">
             <Link
               href="/explore"
-              className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
+              className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition text-sm font-medium"
             >
               Explore Ads
             </Link>
             <Link
               href="/packages"
-              className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
+              className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition text-sm font-medium"
             >
               Packages
             </Link>
@@ -149,21 +149,21 @@ export default function HomePage() {
                 {user.role === "admin" || user.role === "super_admin" ? (
                   <Link
                     href="/admin/dashboard"
-                    className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
+                    className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition text-sm font-medium"
                   >
                     Admin Dashboard
                   </Link>
                 ) : user.role === "moderator" ? (
                   <Link
                     href="/moderator/queue"
-                    className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
+                    className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition text-sm font-medium"
                   >
                     Moderator Queue
                   </Link>
                 ) : (
                   <Link
                     href="/dashboard"
-                    className="text-zinc-600 hover:text-zinc-900 transition text-sm font-medium"
+                    className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition text-sm font-medium"
                   >
                     Dashboard
                   </Link>
@@ -192,10 +192,10 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 py-24 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 mb-6">
+        <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 dark:text-zinc-50 mb-6">
           Post Ads, Get Results Faster
         </h1>
-        <p className="text-lg md:text-xl text-zinc-600 mb-8 max-w-2xl mx-auto">
+        <p className="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 mb-8 max-w-2xl mx-auto">
           Reach thousands of verified buyers with AdFlow Pro&apos;s trusted
           marketplace. Professional moderation, secure payments, and flexible
           packages.
@@ -211,7 +211,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/explore"
-                className="bg-white hover:bg-zinc-50 text-zinc-800 px-8 py-3 rounded-lg text-sm md:text-base font-semibold border border-zinc-300 shadow-sm transition"
+                className="bg-white dark:bg-slate-900 hover:bg-zinc-50 dark:hover:bg-slate-800 text-zinc-800 dark:text-zinc-100 px-8 py-3 rounded-lg text-sm md:text-base font-semibold border border-zinc-300 dark:border-slate-700 shadow-sm transition"
               >
                 Browse Listings
               </Link>
@@ -226,7 +226,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/explore"
-                className="bg-white hover:bg-zinc-50 text-zinc-800 px-8 py-3 rounded-lg text-sm md:text-base font-semibold border border-zinc-300 shadow-sm transition"
+                className="bg-white dark:bg-slate-900 hover:bg-zinc-50 dark:hover:bg-slate-800 text-zinc-800 dark:text-zinc-100 px-8 py-3 rounded-lg text-sm md:text-base font-semibold border border-zinc-300 dark:border-slate-700 shadow-sm transition"
               >
                 Browse Public Ads
               </Link>
@@ -237,32 +237,32 @@ export default function HomePage() {
 
       {/* Key Features */}
       <div className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-3 gap-8">
-        <div className="bg-white border border-zinc-200 p-8 rounded-2xl shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-800 p-8 rounded-2xl shadow-sm">
           <div className="text-4xl mb-4">🚀</div>
-          <h3 className="text-lg font-semibold text-zinc-900 mb-3">
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-3">
             Fast Publishing
           </h3>
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
             Get your listing approved and live within hours through our
             professional moderation process.
           </p>
         </div>
-        <div className="bg-white border border-zinc-200 p-8 rounded-2xl shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-800 p-8 rounded-2xl shadow-sm">
           <div className="text-4xl mb-4">🔒</div>
-          <h3 className="text-lg font-semibold text-zinc-900 mb-3">
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-3">
             Secure Payments
           </h3>
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
             Transparent payment verification and admin approval ensures trust
             and security for all users.
           </p>
         </div>
-        <div className="bg-white border border-zinc-200 p-8 rounded-2xl shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-800 p-8 rounded-2xl shadow-sm">
           <div className="text-4xl mb-4">📊</div>
-          <h3 className="text-lg font-semibold text-zinc-900 mb-3">
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-3">
             Smart Ranking
           </h3>
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
             Premium packages and featured listings boost visibility. Newest and
             best ads appear first.
           </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
@@ -30,6 +30,8 @@ export default function AdminModerationPage() {
   const [loadingAds, setLoadingAds] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const ADMIN_QUEUE_STATUSES = ["scheduled", "under_review", "payment_pending"] as const;
+
   useEffect(() => {
     if (!loading && (!user || (role !== "admin" && role !== "super_admin"))) {
       router.push("/signin");
@@ -42,7 +44,7 @@ export default function AdminModerationPage() {
     }
   }, [user, role]);
 
-  const fetchAds = async () => {
+  const fetchAds = useCallback(async () => {
     try {
       setLoadingAds(true);
       setError(null);
@@ -50,7 +52,7 @@ export default function AdminModerationPage() {
       const { data, error } = await supabase
         .from("ads")
         .select("id, title, status, created_at, users:user_id(email)")
-        .eq("status", "scheduled")
+        .in("status", ADMIN_QUEUE_STATUSES as unknown as string[])
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -75,7 +77,60 @@ export default function AdminModerationPage() {
     } finally {
       setLoadingAds(false);
     }
-  };
+  }, []);
+
+  // Keep admin queue in sync when ads change status around the
+  // admin moderation states.
+  useEffect(() => {
+    if (!user || (role !== "admin" && role !== "super_admin")) {
+      return;
+    }
+
+    const channel = supabase
+      .channel("admin-moderation-ads")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ads" },
+        (payload) => {
+          const nextStatus = (payload.new as { status?: string }).status;
+          if (
+            nextStatus &&
+            (ADMIN_QUEUE_STATUSES as readonly string[]).includes(nextStatus)
+          ) {
+            void fetchAds();
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "ads" },
+        (payload) => {
+          const nextStatus = (payload.new as { status?: string }).status;
+          const prevStatus = (payload.old as { status?: string }).status;
+          const wasInQueue =
+            prevStatus &&
+            (ADMIN_QUEUE_STATUSES as readonly string[]).includes(prevStatus);
+          const nowInQueue =
+            nextStatus &&
+            (ADMIN_QUEUE_STATUSES as readonly string[]).includes(nextStatus);
+          if (wasInQueue || nowInQueue) {
+            void fetchAds();
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "ads" },
+        () => {
+          void fetchAds();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, role, fetchAds]);
 
   const approve = async (adId: string) => {
     try {
@@ -83,7 +138,7 @@ export default function AdminModerationPage() {
         .from("ads")
         .update({ status: "payment_pending" })
         .eq("id", adId)
-        .eq("status", "scheduled");
+        .in("status", ADMIN_QUEUE_STATUSES as unknown as string[]);
 
       if (error) {
         setError(error.message);
@@ -103,7 +158,7 @@ export default function AdminModerationPage() {
         .from("ads")
         .update({ status: "rejected" })
         .eq("id", adId)
-        .eq("status", "scheduled");
+        .in("status", ADMIN_QUEUE_STATUSES as unknown as string[]);
 
       if (error) {
         setError(error.message);
@@ -113,6 +168,36 @@ export default function AdminModerationPage() {
       setAds((prev) => prev.filter((ad) => ad.id !== adId));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to reject ad");
+    }
+  };
+
+  const deleteAd = async (adId: string) => {
+    if (!window.confirm("Are you sure you want to delete this ad?")) {
+      return;
+    }
+
+    try {
+      const { error: logError } = await supabase.from("audit_logs").insert({
+        action_type: "admin_delete_ad",
+        target_type: "ad",
+        target_id: adId,
+        note: `Ad ${adId} deleted by admin ${user?.id ?? "unknown"}`,
+      });
+
+      if (logError) {
+        console.error("Failed to log admin ad deletion", logError.message);
+      }
+
+      const { error } = await supabase.from("ads").delete().eq("id", adId);
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      setAds((prev) => prev.filter((ad) => ad.id !== adId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete ad");
     }
   };
 
@@ -191,6 +276,12 @@ export default function AdminModerationPage() {
                     className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold shadow-sm transition"
                   >
                     ✗ Reject
+                  </button>
+                  <button
+                    onClick={() => deleteAd(ad.id)}
+                    className="px-4 py-2 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg text-sm font-semibold shadow-sm transition"
+                  >
+                    Delete ad
                   </button>
                 </div>
               </div>

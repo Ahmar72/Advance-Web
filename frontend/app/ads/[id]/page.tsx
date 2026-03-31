@@ -163,7 +163,7 @@ export default function AdDetailPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100">
+    <div className="min-h-screen bg-linear-to-b from-zinc-50 to-zinc-100 dark:from-slate-900 dark:to-slate-950">
       <div className="max-w-7xl mx-auto px-4 py-10">
         {loading ? (
           <div className="text-center text-zinc-500">Loading ad...</div>
@@ -182,7 +182,7 @@ export default function AdDetailPage() {
               >
                 ← Go Back
               </Link>
-              <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                 {ad.media?.length ? (
                   <div className="p-3 space-y-3">
                     <div className="rounded-xl border border-zinc-200 bg-zinc-100 overflow-hidden">
@@ -298,12 +298,14 @@ export default function AdDetailPage() {
                         >
                           Edit listing
                         </Link>
-                        <Link
-                          href={`/ads/${ad.id}/payment`}
-                          className="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                        >
-                          Manage payment
-                        </Link>
+                        {ad.status === "payment_pending" && (
+                          <Link
+                            href={`/ads/${ad.id}/payment`}
+                            className="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                          >
+                            Proceed to payment
+                          </Link>
+                        )}
                       </div>
                     ) : null}
                   </div>

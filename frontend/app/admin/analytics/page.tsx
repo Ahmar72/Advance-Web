@@ -398,7 +398,7 @@ export default function AnalyticsPage() {
         {/* Top Categories and Cities */}
         <div className="grid md:grid-cols-2 gap-6">
           {/* Top Categories */}
-          <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+          <div className="neon-card bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-zinc-900 mb-4">
               Top Categories
             </h3>
@@ -433,7 +433,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Top Cities */}
-          <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+          <div className="neon-card bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-zinc-900 mb-4">
               Top Cities
             </h3>
@@ -474,7 +474,7 @@ export default function AnalyticsPage() {
             Package Distribution
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-zinc-900 mb-4">
                 Ads by Package
               </h3>
@@ -490,7 +490,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+            <div className="neon-card bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-zinc-900 mb-4">
                 Revenue by Package
               </h3>
@@ -558,7 +558,9 @@ function StatCard({
   };
 
   return (
-    <div className={`${colorClasses[color]} border rounded-lg p-4 shadow-sm`}>
+    <div
+      className={`neon-card ${colorClasses[color]} border rounded-lg p-4 shadow-sm`}
+    >
       <div className="flex justify-between items-start">
         <div>
           <p className="text-zinc-500 text-sm">{label}</p>

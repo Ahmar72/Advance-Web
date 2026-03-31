@@ -97,7 +97,7 @@ export default function AdminDashboardPage() {
         <>
           {metrics && (
             <div className="grid md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
+              <div className="neon-card bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
                 <p className="text-xs font-medium text-zinc-500 mb-1">
                   Total Ads
                 </p>
@@ -105,7 +105,7 @@ export default function AdminDashboardPage() {
                   {metrics.total_ads}
                 </p>
               </div>
-              <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
+              <div className="neon-card bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
                 <p className="text-xs font-medium text-zinc-500 mb-1">
                   Active Listings
                 </p>
@@ -113,7 +113,7 @@ export default function AdminDashboardPage() {
                   {metrics.active_ads}
                 </p>
               </div>
-              <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
+              <div className="neon-card bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
                 <p className="text-xs font-medium text-zinc-500 mb-1">
                   Total Revenue
                 </p>
@@ -121,7 +121,7 @@ export default function AdminDashboardPage() {
                   ${metrics.total_revenue.toFixed(2)}
                 </p>
               </div>
-              <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
+              <div className="neon-card bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm">
                 <p className="text-xs font-medium text-zinc-500 mb-1">
                   Rejected Ads
                 </p>
@@ -135,7 +135,7 @@ export default function AdminDashboardPage() {
           <div className="grid md:grid-cols-3 gap-6">
             <Link
               href="/admin/payment-queue"
-              className="block bg-white border border-zinc-200 p-6 rounded-2xl hover:bg-zinc-50 shadow-sm transition"
+              className="neon-card block bg-white border border-zinc-200 p-6 rounded-2xl hover:bg-zinc-50 shadow-sm transition"
             >
               <h3 className="text-lg font-semibold text-zinc-900 mb-1">
                 Payment Queue
@@ -150,7 +150,7 @@ export default function AdminDashboardPage() {
 
             <Link
               href="/admin/moderation"
-              className="block bg-white border border-zinc-200 p-6 rounded-2xl hover:bg-zinc-50 shadow-sm transition"
+              className="neon-card block bg-white border border-zinc-200 p-6 rounded-2xl hover:bg-zinc-50 shadow-sm transition"
             >
               <h3 className="text-lg font-semibold text-zinc-900 mb-1">
                 Admin Approvals
@@ -165,7 +165,7 @@ export default function AdminDashboardPage() {
 
             <Link
               href="/admin/analytics"
-              className="block bg-white border border-zinc-200 p-6 rounded-2xl hover:bg-zinc-50 shadow-sm transition"
+              className="neon-card block bg-white border border-zinc-200 p-6 rounded-2xl hover:bg-zinc-50 shadow-sm transition"
             >
               <h3 className="text-lg font-semibold text-zinc-900 mb-1">
                 Analytics

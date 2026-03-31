@@ -3,28 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
-interface AdminShellProps {
+interface ModeratorShellProps {
   title: string;
   subtitle?: string;
   children: ReactNode;
 }
 
 const navItems: { href: Route; label: string }[] = [
-  { href: "/admin/dashboard", label: "Overview" },
-  { href: "/admin/moderation", label: "Pending Ads" },
-  { href: "/admin/payment-queue", label: "Payment Queue" },
-  { href: "/moderator/queue", label: "Moderation Queue" },
-  { href: "/admin/analytics", label: "Analytics" },
-  { href: "/packages", label: "Packages" },
-  { href: "/system-health", label: "System Health" },
-  { href: "/dashboard", label: "User Listings" },
+  { href: "/moderator/queue", label: "Review Queue" },
+  { href: "/dashboard", label: "Client View" },
   { href: "/settings", label: "Settings" },
 ];
 
-export function AdminShell({ title, subtitle, children }: AdminShellProps) {
+export function ModeratorShell({ title, subtitle, children }: ModeratorShellProps) {
   const pathname = usePathname();
 
   return (
@@ -33,10 +27,10 @@ export function AdminShell({ title, subtitle, children }: AdminShellProps) {
       <aside className="hidden md:flex md:flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm">
         <div className="px-4 py-5 border-b border-zinc-200 dark:border-zinc-800">
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            Admin Panel
+            Moderator Panel
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Manage platform & listings
+            Review and flag ads
           </p>
         </div>
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
@@ -58,7 +52,7 @@ export function AdminShell({ title, subtitle, children }: AdminShellProps) {
           })}
         </nav>
         <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-400">
-          Admin access • Roles: admin, super_admin
+          Moderator access • Roles: moderator, admin, super_admin
         </div>
       </aside>
 
