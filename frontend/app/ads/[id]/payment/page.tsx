@@ -94,7 +94,7 @@ export default function PaymentPage() {
 
   const submitPayment = async () => {
     if (!user || !ad) return;
-    if (!PAYABLE_STATUSES.includes(ad.status)) {
+    if (!PAYABLE_STATUSES.includes(ad.status as (typeof PAYABLE_STATUSES)[number])) {
       setError(`Payment not allowed while ad is ${ad.status}.`);
       return;
     }
@@ -159,7 +159,7 @@ export default function PaymentPage() {
         .update({ status: "payment_pending" })
         .eq("id", adId)
         .eq("user_id", user.id)
-        .in("status", PAYABLE_STATUSES);
+        .in("status", PAYABLE_STATUSES as readonly string[]);
 
       if (adUpdateError) throw new Error(adUpdateError.message);
 
@@ -203,7 +203,9 @@ export default function PaymentPage() {
           <div className="rounded-3xl border border-zinc-200 bg-white/90 p-12 text-center text-zinc-500 shadow-sm">
             Ad not found.
           </div>
-        ) : !PAYABLE_STATUSES.includes(ad.status) ? (
+        ) : !PAYABLE_STATUSES.includes(
+            ad.status as (typeof PAYABLE_STATUSES)[number]
+          ) ? (
           <div className="rounded-3xl border border-zinc-200 bg-white/95 p-10 text-center shadow-sm">
             <div className="text-xl font-bold text-zinc-900">
               Payment not allowed for this ad
