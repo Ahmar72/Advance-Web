@@ -30,7 +30,7 @@ export default function AdminModerationPage() {
   const [loadingAds, setLoadingAds] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const ADMIN_QUEUE_STATUSES = ["scheduled", "under_review", "payment_pending"] as const;
+  const ADMIN_QUEUE_STATUSES = ["scheduled"] as const;
 
   useEffect(() => {
     if (!loading && (!user || (role !== "admin" && role !== "super_admin"))) {
@@ -134,14 +134,39 @@ export default function AdminModerationPage() {
 
   const approve = async (adId: string) => {
     try {
-      const { error } = await supabase
-        .from("ads")
-        .update({ status: "payment_pending" })
-        .eq("id", adId)
-        .in("status", ADMIN_QUEUE_STATUSES as unknown as string[]);
+      setError(null);
 
-      if (error) {
-        setError(error.message);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        setError("Your session has expired. Please sign in again as admin.");
+        return;
+      }
+
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        setError("Backend URL is not configured.");
+        return;
+      }
+
+      const res = await fetch(`${backendUrl}/api/v1/admin/ads/${adId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "payment_pending" }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const message =
+          (body && (body.error || body.message)) ||
+          `Backend error: ${res.status}`;
+        setError(message);
         return;
       }
 
@@ -154,14 +179,39 @@ export default function AdminModerationPage() {
   const reject = async (adId: string) => {
     const reason = prompt("Rejection reason (optional):") || "";
     try {
-      const { error } = await supabase
-        .from("ads")
-        .update({ status: "rejected" })
-        .eq("id", adId)
-        .in("status", ADMIN_QUEUE_STATUSES as unknown as string[]);
+      setError(null);
 
-      if (error) {
-        setError(error.message);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        setError("Your session has expired. Please sign in again as admin.");
+        return;
+      }
+
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        setError("Backend URL is not configured.");
+        return;
+      }
+
+      const res = await fetch(`${backendUrl}/api/v1/admin/ads/${adId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "rejected" }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const message =
+          (body && (body.error || body.message)) ||
+          `Backend error: ${res.status}`;
+        setError(message);
         return;
       }
 
@@ -178,20 +228,45 @@ export default function AdminModerationPage() {
 
     try {
       const { error: logError } = await supabase.from("audit_logs").insert({
+        actor_id: user?.id ?? null,
         action_type: "admin_delete_ad",
         target_type: "ad",
         target_id: adId,
-        note: `Ad ${adId} deleted by admin ${user?.id ?? "unknown"}`,
       });
 
       if (logError) {
         console.error("Failed to log admin ad deletion", logError.message);
       }
 
-      const { error } = await supabase.from("ads").delete().eq("id", adId);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (error) {
-        setError(error.message);
+      if (sessionError || !session?.access_token) {
+        setError("Your session has expired. Please sign in again as admin.");
+        return;
+      }
+
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        setError("Backend URL is not configured.");
+        return;
+      }
+
+      const res = await fetch(`${backendUrl}/api/v1/admin/ads/${adId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const message =
+          (body && (body.error || body.message)) ||
+          `Backend error: ${res.status}`;
+        setError(message);
         return;
       }
 

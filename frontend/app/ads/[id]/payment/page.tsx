@@ -142,6 +142,7 @@ export default function PaymentPage() {
 
       const { error: insertError } = await supabase.from("payments").insert({
         ad_id: adId,
+        user_id: user.id,
         package_id: ad.package.id,
         amount: amountNumber,
         method,

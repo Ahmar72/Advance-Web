@@ -99,10 +99,10 @@ export default function PaymentQueuePage() {
 
     try {
       const { error: logError } = await supabase.from("audit_logs").insert({
+        actor_id: user?.id ?? "unknown",
         action_type: "admin_delete_ad",
         target_type: "ad",
         target_id: adId,
-        note: `Ad ${adId} deleted by admin ${user?.id ?? "unknown"} from payment queue`,
       });
 
       if (logError) {

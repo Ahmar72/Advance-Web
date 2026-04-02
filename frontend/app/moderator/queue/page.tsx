@@ -59,75 +59,59 @@ export default function ModeratorQueuePage() {
     }
   }, [user, role, loading, router]);
 
-  useEffect(() => {
-    if (
-      user &&
-      (role === "moderator" || role === "admin" || role === "super_admin")
-    ) {
-      void fetchQueue();
-    }
-  }, [user, role]);
-
   const fetchQueue = useCallback(async () => {
     try {
       setQueueError(null);
-      const { data, error } = await supabase
-        .from("ads")
-        .select("id, title, description, status, moderation_remark, user_id")
-        .in("status", MODERATION_QUEUE_STATUSES)
-        .order("created_at", { ascending: false })
-        .limit(50);
+      // Use backend API so moderators/admins bypass Supabase RLS quirks.
+      const {
+        data: sessionData,
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (error) {
-        console.error(
-          "Failed to fetch moderation queue from Supabase",
-          error.message,
+      if (sessionError || !sessionData.session?.access_token) {
+        setQueueError(
+          "Your session has expired. Please sign in again as a moderator.",
         );
-        setQueueError(`Failed to fetch moderation queue: ${error.message}`);
         return;
       }
 
-      const rows = (data || []) as unknown as ReviewQueueRow[];
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        setQueueError("Backend URL is not configured.");
+        return;
+      }
+
+      const res = await fetch(`${backendUrl}/api/v1/moderator`, {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const message =
+          (body && (body.error || body.message)) ||
+          `Backend error: ${res.status}`;
+        console.error("Failed to fetch moderation queue via backend", body);
+        setQueueError(message);
+        return;
+      }
+
+      const payload = (await res.json()) as {
+        data?: { data?: ReviewQueueRow[] };
+      };
+
+      const rows = (payload.data?.data || []) as ReviewQueueRow[];
 
       if (rows.length === 0) {
         setQueue([]);
         return;
       }
 
-      const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
-      const adIds = rows.map((row) => row.id);
-
-      const [
-        { data: usersData, error: usersError },
-        { data: mediaData, error: mediaError },
-      ] = await Promise.all([
-        supabase.from("users").select("id, email").in("id", userIds),
-        supabase
-          .from("ad_media")
-          .select("ad_id, original_url")
-          .in("ad_id", adIds),
-      ]);
-
-      if (usersError) {
-        console.error("Failed to fetch queue users:", usersError.message);
-      }
-
-      if (mediaError) {
-        console.error("Failed to fetch queue media:", mediaError.message);
-      }
-
-      const usersRows = (usersData || []) as unknown as QueueUserRow[];
-      const mediaRows = (mediaData || []) as unknown as QueueMediaRow[];
-
-      const userEmailById = new Map(
-        usersRows.map((u) => [u.id, u.email || ""]),
-      );
+      const userEmailById = new Map<string, string>();
       const mediaByAdId = new Map<string, Array<{ original_url: string }>>();
-      for (const media of mediaRows) {
-        const existing = mediaByAdId.get(media.ad_id) || [];
-        existing.push({ original_url: media.original_url });
-        mediaByAdId.set(media.ad_id, existing);
-      }
 
       const mapped: ReviewItem[] = rows.map((row) => ({
         id: row.id,
@@ -147,6 +131,15 @@ export default function ModeratorQueuePage() {
       setLoadingQueue(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (
+      user &&
+      (role === "moderator" || role === "admin" || role === "super_admin")
+    ) {
+      void fetchQueue();
+    }
+  }, [user, role, fetchQueue]);
 
   // Live updates: whenever ads in the moderation statuses are inserted,
   // updated, or deleted, refresh the queue so moderators always see the
@@ -319,10 +312,10 @@ export default function ModeratorQueuePage() {
 
     try {
       const { error } = await supabase.from("audit_logs").insert({
+        actor_id: user?.id ?? null,
         action_type: "moderator_flag",
         target_type: "ad",
         target_id: adId,
-        note: `${severity.toUpperCase()}: ${reason}`,
       });
 
       if (error) {

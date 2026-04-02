@@ -40,6 +40,18 @@ export class AdminController {
   }
 
   /**
+   * DELETE /api/v1/admin/ads/:id - Delete ad as admin
+   */
+  async deleteAd(req: Request, res: Response): Promise<void> {
+    try {
+      await adminService.deleteAdAsAdmin(req.params.id);
+      res.json(success(null, 'Ad deleted successfully'));
+    } catch (err: any) {
+      res.status(400).json(errorResponse(err.message));
+    }
+  }
+
+  /**
    * GET /api/v1/admin/packages - Get all packages
    */
   async getPackages(req: Request, res: Response): Promise<void> {

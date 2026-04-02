@@ -41,6 +41,16 @@ router.patch(
 );
 
 /**
+ * DELETE /api/v1/admin/ads/:id - Delete ad
+ */
+router.delete(
+  '/ads/:id',
+  requireAuth,
+  requireRole(['admin', 'super_admin']),
+  adminController.deleteAd.bind(adminController)
+);
+
+/**
  * GET /api/v1/admin/packages - Get packages
  */
 router.get(

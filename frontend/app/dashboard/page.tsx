@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSupabaseAuth } from "@/lib/useSupabaseAuth";
@@ -41,6 +48,10 @@ function DashboardPageInner() {
   const [loadingAds, setLoadingAds] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const isResizingRef = useRef(false);
 
   useEffect(() => {
     if (loading) return;
@@ -62,6 +73,35 @@ function DashboardPageInner() {
       router.push("/moderator/queue");
     }
   }, [user, role, loading, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("aw-dashboard-avatar");
+    if (stored) {
+      setAvatarUrl(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const next = Math.min(360, Math.max(220, event.clientX));
+      setSidebarWidth(next);
+    };
+
+    const handleMouseUp = () => {
+      if (!isResizingRef.current) return;
+      isResizingRef.current = false;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
 
   const fetchUserAds = useCallback(async () => {
     if (!user) return;
@@ -131,10 +171,10 @@ function DashboardPageInner() {
 
       // Log a deletion event for admins/moderators to see in audit logs.
       const { error: logError } = await supabase.from("audit_logs").insert({
+        actor_id: user.id,
         action_type: "user_delete_ad",
         target_type: "ad",
         target_id: id,
-        note: `Ad ${id} deleted by user ${user.id}`,
       });
 
       if (logError) {
@@ -170,6 +210,33 @@ function DashboardPageInner() {
     }
   };
 
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result =
+        typeof reader.result === "string" ? reader.result : null;
+      if (result) {
+        setAvatarUrl(result);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("aw-dashboard-avatar", result);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResizeMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    isResizingRef.current = true;
+  };
+
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
@@ -185,29 +252,58 @@ function DashboardPageInner() {
   const topMessage = errorMessage || successMessage || infoMessage;
   const topTone = errorMessage ? "error" : successMessage ? "success" : "info";
 
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined) ||
+    (user.user_metadata?.name as string | undefined) ||
+    user.email;
+  const initial = (displayName || "U").charAt(0).toUpperCase();
+
   return (
     <div className="min-h-screen flex bg-zinc-50 dark:bg-slate-900">
       {/* Sidebar */}
-      <aside className="hidden md:flex md:flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm">
+      <aside
+        className="hidden md:flex md:flex-col relative flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm"
+        style={{ width: sidebarWidth }}
+      >
         <div className="px-4 py-5 border-b border-zinc-200">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-semibold">
-              {(
-                (user.user_metadata?.full_name as string | undefined) ||
-                (user.user_metadata?.name as string | undefined) ||
-                user.email ||
-                "U"
-              )
-                .charAt(0)
-                .toUpperCase()}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleAvatarClick}
+                className="relative h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-semibold overflow-hidden group border border-white/60 shadow-sm"
+                aria-label="Change profile picture"
+              >
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarUrl}
+                    alt="Profile avatar"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>{initial}</span>
+                )}
+                <span className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] font-medium tracking-wide">
+                  Change
+                </span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
             </div>
-            <div>
-              <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 truncate">
-                {(user.user_metadata?.full_name as string | undefined) ||
-                  (user.user_metadata?.name as string | undefined) ||
-                  user.email}
+            <div className="min-w-0">
+              <div className="text-base font-semibold text-zinc-900 dark:text-zinc-50 truncate">
+                {displayName}
               </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 capitalize">
+              <div className="text-xs md:text-sm text-zinc-500 dark:text-zinc-400 truncate">
+                {user.email}
+              </div>
+              <div className="mt-1 inline-flex items-center rounded-full bg-zinc-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:text-zinc-300 uppercase tracking-wide">
                 {role || "client"}
               </div>
             </div>
@@ -224,7 +320,7 @@ function DashboardPageInner() {
             href="/dashboard/history"
             className="w-full flex items-center rounded-lg px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition"
           >
-            History
+            History & Insights
           </Link>
           <Link
             href="/settings"
@@ -233,6 +329,10 @@ function DashboardPageInner() {
             Account Settings
           </Link>
         </nav>
+        <div
+          className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-zinc-300/60"
+          onMouseDown={handleResizeMouseDown}
+        />
         <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800">
           <button
             type="button"

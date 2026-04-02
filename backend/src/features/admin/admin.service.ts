@@ -119,6 +119,16 @@ class AdminService {
   }
 
   /**
+   * Delete ad as admin (hard delete)
+   */
+  async deleteAdAsAdmin(adId: string): Promise<void> {
+    const supabase = createAdminSupabase();
+    const { error } = await supabase.from('ads').delete().eq('id', adId);
+
+    if (error) throw new Error(`Failed to delete ad: ${error.message}`);
+  }
+
+  /**
    * Get all packages (for admin)
    */
   async getPackages(): Promise<any> {
