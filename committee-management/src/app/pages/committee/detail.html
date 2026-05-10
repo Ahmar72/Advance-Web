@@ -157,6 +157,18 @@
           </article>
         </div>
       </section>
+
+      <section class="panel creator-tools" *ngIf="canManageCommittee && committee.pendingInvites?.length">
+        <h2>Pending invitations</h2>
+        <p class="panel-help">These email invites are waiting for the recipient to accept from their notifications.</p>
+        <div class="request-list">
+          <article class="request-card" *ngFor="let member of committee.pendingInvites">
+            <strong>{{ member.full_name }}</strong>
+            <small>{{ member.email_or_phone || 'No contact info' }}</small>
+            <small>Waiting for invited member to respond</small>
+          </article>
+        </div>
+      </section>
     <button type="button" (click)="addCycle()">Create cycle</button>
   </section>
 

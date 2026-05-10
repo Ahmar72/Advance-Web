@@ -18,6 +18,7 @@ export class CommitteeDiscoverComponent implements OnInit {
   isLoading = true;
   error: string | null = null;
   currentUserId: string | null = null;
+  currentUserEmail: string | null = null;
 
   private routerSub: Subscription | null = null;
   private authSub: Subscription | null = null;
@@ -34,6 +35,7 @@ export class CommitteeDiscoverComponent implements OnInit {
   ngOnInit() {
     this.authSub = this.authService.currentUser$.subscribe((user) => {
       this.currentUserId = user?.id || null;
+      this.currentUserEmail = user?.email || null;
     });
 
     this.loadCommittees();
@@ -120,7 +122,7 @@ export class CommitteeDiscoverComponent implements OnInit {
       return;
     }
 
-    const { error } = await this.committeeService.requestJoinCommittee(committeeId, this.currentUserId);
+    const { error } = await this.committeeService.requestJoinCommittee(committeeId, this.currentUserId, this.currentUserEmail || undefined);
     if (error) {
       this.error = error.message || 'Unable to submit join request';
       return;

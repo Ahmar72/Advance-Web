@@ -100,6 +100,7 @@ export interface CommitteeDetail extends CommitteeRecord {
   } | null;
   members: CommitteeMemberRecord[];
   pendingMembers?: CommitteeMemberRecord[];
+  pendingInvites?: CommitteeMemberRecord[];
   cycles: CommitteeCycleRecord[];
   payments: PaymentRecord[];
   currentMembers: number;
@@ -281,46 +282,15 @@ export class CommitteeService {
   }
 
   private async supportsApprovalStatus() {
-    if (this.approvalStatusSupported !== null) {
-      return this.approvalStatusSupported;
-    }
-
-    try {
-      const { error } = await this.supabaseService
-        .getClient()
-        .from('committee_members')
-        .select('id,approval_status')
-        .limit(1);
-
-      if (error) {
-        this.approvalStatusSupported = !this.isApprovalStatusMissingError(error);
-      } else {
-        this.approvalStatusSupported = true;
-      }
-    } catch (err) {
-      console.warn('Unable to determine approval_status support', err);
-      this.approvalStatusSupported = true;
-    }
-
-    return this.approvalStatusSupported;
+    // Always return false - we don't support approval_status column
+    // This simplifies queries and avoids schema cache errors
+    this.approvalStatusSupported = false;
+    return false;
   }
 
   async listDiscoverableCommittees() {
     try {
-      console.debug('Querying active_committees_with_creator');
-      const { data, error } = await this.supabaseService
-        .getClient()
-        .from('active_committees_with_creator')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error) {
-        console.debug('listDiscoverableCommittees result:', { data, error });
-        return { data: (data || []) as CommitteeSummary[], error };
-      }
-
-      console.warn('View query failed, using fallback discover query', error);
-      return await this.listDiscoverableCommitteesFallback(error);
+      return await this.listDiscoverableCommitteesFallback();
     } catch (err) {
       console.error('Exception while fetching discoverable committees', err);
       return await this.listDiscoverableCommitteesFallback(err as any);
@@ -330,7 +300,6 @@ export class CommitteeService {
   private async listDiscoverableCommitteesFallback(fallbackError: any = null) {
     try {
       const client = this.supabaseService.getClient();
-      const approvalStatusSupported = await this.supportsApprovalStatus();
 
       const { data: committees, error: committeeError } = await client
         .from('committees')
@@ -366,18 +335,12 @@ export class CommitteeService {
       }
 
       if (committeeIds.length) {
-        const memberQuery = approvalStatusSupported
-          ? client
-              .from('committee_members')
-              .select('committee_id')
-              .in('committee_id', committeeIds)
-              .eq('approval_status', 'approved')
-          : client
-              .from('committee_members')
-              .select('committee_id')
-              .in('committee_id', committeeIds);
+        const { data: memberRows, error: memberError } = await client
+          .from('committee_members')
+          .select('committee_id')
+          .in('committee_id', committeeIds)
+          .not('user_id', 'is', null);
 
-        const { data: memberRows, error: memberError } = await memberQuery;
         if (memberError) {
           console.error('Fallback discover member count error:', memberError);
         } else {
@@ -387,19 +350,17 @@ export class CommitteeService {
           });
         }
 
-        if (approvalStatusSupported) {
-          const { data: progressRows, error: progressError } = await client
-            .from('committee_progress')
-            .select('id, progress_percentage, total_cycles, completed_cycles')
-            .in('id', committeeIds);
+        const { data: progressRows, error: progressError } = await client
+          .from('committee_progress')
+          .select('id, progress_percentage, total_cycles, completed_cycles')
+          .in('id', committeeIds);
 
-          if (progressError) {
-            console.error('Fallback discover progress error:', progressError);
-          } else {
-            (progressRows || []).forEach((row: any) => {
-              progressMap.set(row.id, row);
-            });
-          }
+        if (progressError) {
+          console.error('Fallback discover progress error:', progressError);
+        } else {
+          (progressRows || []).forEach((row: any) => {
+            progressMap.set(row.id, row);
+          });
         }
       }
 
@@ -439,7 +400,7 @@ export class CommitteeService {
       const { data, error } = await this.supabaseService
         .getClient()
         .from('committees')
-        .select('*')
+        .select('id,title,description,creator_id,monthly_amount,max_members,duration_months,status,created_at,updated_at')
         .eq('id', id)
         .single();
 
@@ -477,14 +438,32 @@ export class CommitteeService {
       const { data, error } = await this.supabaseService
         .getClient()
         .from('committee_members')
-        .select('*')
+        .select('id,committee_id,user_id,full_name,email_or_phone,join_order,is_creator')
         .eq('committee_id', committeeId)
         .order('join_order', { ascending: true });
 
       if (error) console.error('getCommitteeMembers error:', error);
-      return { data: (data || []) as CommitteeMemberRecord[], error };
+      return { data: (data || []) as any[], error };
     } catch (err) {
       console.error('Unexpected error in getCommitteeMembers:', err);
+      return { data: [], error: err as any };
+    }
+  }
+
+  async listPendingInvitesByEmail(email: string) {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('committee_members')
+        .select('id,committee_id,user_id,full_name,email_or_phone,join_order,is_creator,other_payment_details')
+        .eq('email_or_phone', email)
+        .is('user_id', null)
+        .order('join_order', { ascending: true });
+
+      if (error) console.error('listPendingInvitesByEmail error:', error);
+      return { data: (data || []) as CommitteeMemberRecord[], error };
+    } catch (err) {
+      console.error('Unexpected error in listPendingInvitesByEmail:', err);
       return { data: [], error: err as any };
     }
   }
@@ -492,11 +471,11 @@ export class CommitteeService {
   async requestJoinCommittee(
     committeeId: string,
     userId: string,
+    requesterEmail?: string,
     retriedWithoutApproval = false
   ): Promise<{ data: CommitteeMemberRecord | null; error: any }> {
     try {
       const client = this.supabaseService.getClient();
-      const approvalStatusSupported = await this.supportsApprovalStatus();
       const [{ data: committee, error: committeeError }, { data: profile }] = await Promise.all([
         client.from('committees').select('id,title,creator_id,max_members,status').eq('id', committeeId).single(),
         client.from('profiles').select('display_name').eq('id', userId).single(),
@@ -504,43 +483,31 @@ export class CommitteeService {
 
       if (committeeError) return { data: null, error: committeeError };
 
+      const pendingContact = requesterEmail || null;
+
+      // Check if user already a member or has a pending request for this committee.
       const existing = await client
         .from('committee_members')
-        .select(approvalStatusSupported ? 'id,approval_status' : 'id')
+        .select('id')
         .eq('committee_id', committeeId)
-        .eq('user_id', userId)
+        .or(`user_id.eq.${userId}${pendingContact ? `,email_or_phone.eq.${pendingContact}` : ''}`)
         .maybeSingle();
 
       if (existing.error) {
-        if (approvalStatusSupported && !retriedWithoutApproval && this.isApprovalStatusMissingError(existing.error)) {
-          this.approvalStatusSupported = false;
-          return this.requestJoinCommittee(committeeId, userId, true);
-        }
-
         return { data: null, error: existing.error as any };
       }
 
       if (existing.data) {
-        return { data: existing.data as any, error: new Error('You are already in this committee') as any };
+        return { data: existing.data as any, error: new Error('You already have a membership or pending request in this committee') as any };
       }
 
-      const approvedCount = approvalStatusSupported
-        ? await client
-            .from('committee_members')
-            .select('id', { count: 'exact', head: true })
-            .eq('committee_id', committeeId)
-            .eq('approval_status', 'approved')
-        : await client
-            .from('committee_members')
-            .select('id', { count: 'exact', head: true })
-            .eq('committee_id', committeeId);
+      // Count current members (without approval_status filter)
+      const approvedCount = await client
+        .from('committee_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('committee_id', committeeId);
 
       if (approvedCount.error) {
-        if (approvalStatusSupported && !retriedWithoutApproval && this.isApprovalStatusMissingError(approvedCount.error)) {
-          this.approvalStatusSupported = false;
-          return this.requestJoinCommittee(committeeId, userId, true);
-        }
-
         return { data: null, error: approvedCount.error as any };
       }
 
@@ -548,31 +515,30 @@ export class CommitteeService {
         return { data: null, error: new Error('This committee is full') as any };
       }
 
+      // Create member record without approval_status
       const memberPayload: Record<string, any> = {
         committee_id: committeeId,
-        user_id: userId,
+        user_id: null,
         full_name: profile?.display_name || 'Member',
+        email_or_phone: pendingContact,
         join_order: Number(approvedCount.count || 0) + 1,
         is_creator: false,
-        other_payment_details: {},
+        other_payment_details: {
+          request_type: 'join_request',
+          requester_id: userId,
+          requester_email: pendingContact,
+          requester_name: profile?.display_name || 'Member',
+        },
       };
-
-      if (approvalStatusSupported) {
-        memberPayload['approval_status'] = 'pending';
-      }
 
       const { data, error } = await client
         .from('committee_members')
-        .upsert(memberPayload, { onConflict: 'committee_id,user_id' })
-        .select()
+        .insert(memberPayload)
+        .select('id,committee_id,user_id,full_name,email_or_phone,join_order,is_creator')
         .single();
 
-      if (error && approvalStatusSupported && !retriedWithoutApproval && this.isApprovalStatusMissingError(error)) {
-        this.approvalStatusSupported = false;
-        return this.requestJoinCommittee(committeeId, userId, true);
-      }
-
       if (!error && data) {
+        // Send notification to the creator; the pending row keeps the request state
         await client.from('notifications').insert({
           user_id: committee.creator_id,
           type: 'join_request',
@@ -582,6 +548,8 @@ export class CommitteeService {
             committee_id: committeeId,
             requester_id: userId,
             requester_name: profile?.display_name || 'Member',
+            member_id: data.id,
+            request_type: 'join_request',
           },
         });
         try { this.committeeUpdated$.next(committeeId); } catch {}
@@ -595,61 +563,49 @@ export class CommitteeService {
   }
 
   async approveJoinRequest(committeeId: string, memberId: string, memberName?: string, requesterUserId?: string) {
-    if (!(await this.supportsApprovalStatus())) {
-      return { data: null, error: new Error('Join approvals require the database schema update to be applied.') as any };
-    }
-
     const client = this.supabaseService.getClient();
+
     const { data, error } = await client
       .from('committee_members')
-      .update({ approval_status: 'approved' })
+      .update({ user_id: requesterUserId || null })
       .eq('committee_id', committeeId)
       .eq('id', memberId)
-      .select()
+      .select('id,committee_id,user_id,full_name,email_or_phone,join_order,is_creator')
       .single();
 
-    if (!error && data) {
-      if (requesterUserId) {
-        await client.from('notifications').insert({
-          user_id: requesterUserId,
-          type: 'join_request_response',
-          title: 'Join request approved',
-          body: `Your request to join ${memberName || 'the committee'} was approved.`,
-          data: { committee_id: committeeId, member_id: memberId, status: 'approved' },
-        });
-      }
-      try { this.committeeUpdated$.next(committeeId); } catch {}
+    if (!error && requesterUserId) {
+      await client.from('notifications').insert({
+        user_id: requesterUserId,
+        type: 'join_request_response',
+        title: 'Request accepted',
+        body: `Your request to join ${memberName || 'the committee'} was accepted.`,
+        data: { committee_id: committeeId, member_id: memberId, status: 'approved' },
+      });
     }
+    try { this.committeeUpdated$.next(committeeId); } catch {}
 
     return { data: data as CommitteeMemberRecord | null, error };
   }
 
   async rejectJoinRequest(committeeId: string, memberId: string, memberName?: string, requesterUserId?: string) {
-    if (!(await this.supportsApprovalStatus())) {
-      return { data: null, error: new Error('Join approvals require the database schema update to be applied.') as any };
-    }
-
     const client = this.supabaseService.getClient();
     const { data, error } = await client
       .from('committee_members')
-      .update({ approval_status: 'rejected' })
-      .eq('committee_id', committeeId)
+      .delete()
       .eq('id', memberId)
       .select()
       .single();
 
-    if (!error && data) {
-      if (requesterUserId) {
-        await client.from('notifications').insert({
-          user_id: requesterUserId,
-          type: 'join_request_response',
-          title: 'Join request rejected',
-          body: `Your request to join ${memberName || 'the committee'} was rejected.`,
-          data: { committee_id: committeeId, member_id: memberId, status: 'rejected' },
-        });
-      }
-      try { this.committeeUpdated$.next(committeeId); } catch {}
+    if (!error && requesterUserId) {
+      await client.from('notifications').insert({
+        user_id: requesterUserId,
+        type: 'join_request_response',
+        title: 'Join request rejected',
+        body: `Your request to join ${memberName || 'the committee'} was rejected.`,
+        data: { committee_id: committeeId, member_id: memberId, status: 'rejected' },
+      });
     }
+    try { this.committeeUpdated$.next(committeeId); } catch {}
 
     return { data: data as CommitteeMemberRecord | null, error };
   }
@@ -769,12 +725,12 @@ export class CommitteeService {
   }
 
   async addMember(payload: AddCommitteeMemberPayload) {
-    const approvalStatusSupported = await this.supportsApprovalStatus();
     const { data, error } = await this.supabaseService
       .getClient()
       .from('committee_members')
       .insert({
         committee_id: payload.committee_id,
+        user_id: null,
         full_name: payload.full_name,
         email_or_phone: payload.email_or_phone || null,
         join_order: payload.join_order,
@@ -783,9 +739,8 @@ export class CommitteeService {
         iban: payload.iban || null,
         bank_account_id: payload.bank_account_id || null,
         other_payment_details: payload.other_payment_details || {},
-        ...(approvalStatusSupported ? { approval_status: 'approved' } : {}),
       })
-      .select()
+      .select('id,committee_id,user_id,full_name,email_or_phone,join_order,is_creator')
       .single();
 
     if (data && !error) {

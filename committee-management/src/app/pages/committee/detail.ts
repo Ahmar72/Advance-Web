@@ -118,8 +118,9 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
       console.log('âœ… [Detail] All related queries completed');
 
       const allMembers = membersResult.data || [];
-      const members = allMembers.filter((member) => member.approval_status !== 'pending' && member.approval_status !== 'rejected');
-      const pendingMembers = allMembers.filter((member) => member.approval_status === 'pending');
+      const members = allMembers.filter((member) => !!member.user_id || member.is_creator);
+      const pendingMembers = allMembers.filter((member) => !member.user_id && member.other_payment_details?.request_type === 'join_request');
+      const pendingInvites = allMembers.filter((member) => !member.user_id && member.other_payment_details?.request_type === 'invite');
       const cycles = cyclesResult.data || [];
       const payments = paymentsResult.data || [];
       const progress = progressResult.data;
@@ -146,6 +147,7 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
         creator_profile: creatorProfile,
         members,
         pendingMembers,
+        pendingInvites,
         cycles,
         payments,
         currentMembers: members.length,
@@ -215,7 +217,11 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
       payment_identifier: this.memberForm.payment_identifier.trim() || undefined,
       iban: this.memberForm.iban.trim() || undefined,
       bank_account_id: this.memberForm.bank_account_id.trim() || undefined,
-      other_payment_details: parsedDetails,
+      other_payment_details: {
+        ...parsedDetails,
+        request_type: 'invite',
+        committee_title: this.committee.title,
+      },
     });
 
     if (error || !data) {
@@ -236,17 +242,19 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
   }
 
   async approveRequest(member: CommitteeMemberRecord) {
-    if (!this.committee || !member.user_id) return;
+    if (!this.committee) return;
+
+    const requesterUserId = (member.other_payment_details as any)?.requester_id || member.user_id || undefined;
 
     const { error } = await this.committeeService.approveJoinRequest(
       this.committee.id,
       member.id,
       member.full_name,
-      member.user_id
+      requesterUserId
     );
 
     if (error) {
-      this.error = error.message || 'Failed to approve request';
+      this.error = (error as any)?.message || 'Failed to approve request';
       return;
     }
 
@@ -254,13 +262,13 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
   }
 
   async rejectRequest(member: CommitteeMemberRecord) {
-    if (!this.committee || !member.user_id) return;
+    if (!this.committee) return;
 
     const { error } = await this.committeeService.rejectJoinRequest(
       this.committee.id,
       member.id,
       member.full_name,
-      member.user_id
+      (member.other_payment_details as any)?.requester_id || member.user_id || undefined
     );
 
     if (error) {

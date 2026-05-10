@@ -11,10 +11,27 @@
   <div class="status" *ngIf="isLoading">Loading notifications...</div>
   <div class="status error" *ngIf="error">{{ error }}</div>
 
-  <div class="empty-state" *ngIf="!isLoading && !error && !notifications.length">
+  <div class="empty-state" *ngIf="!isLoading && !error && !notifications.length && !pendingInvites.length">
     <h2>No notifications yet</h2>
-    <p>You’ll see join requests, payment updates, and cycle reminders here.</p>
+    <p>You’ll see join requests, payment updates, cycle reminders, and committee invites here.</p>
   </div>
+
+  <section class="notification-list" *ngIf="!isLoading && !error && pendingInvites.length">
+    <article class="notification-card" *ngFor="let invite of pendingInvites">
+      <div class="card-top">
+        <strong>Committee invite</strong>
+        <span>invite</span>
+      </div>
+      <p>You were invited to join <strong>{{ invite.other_payment_details?.['committee_title'] || 'a committee' }}</strong> as {{ invite.full_name }}.</p>
+      <div class="notification-meta">
+        <small>Contact: {{ invite.email_or_phone || 'No contact info' }}</small>
+      </div>
+      <div class="request-actions">
+        <button type="button" class="approve-btn" (click)="acceptInvite(invite)">Accept</button>
+        <button type="button" class="reject-btn" (click)="rejectInvite(invite)">Reject</button>
+      </div>
+    </article>
+  </section>
 
   <div class="notification-list" *ngIf="!isLoading && !error && notifications.length">
     <article class="notification-card" *ngFor="let notification of notifications" [class.read]="notification.is_read">
