@@ -1,0 +1,33 @@
+<div class="app-layout" [class.shell-mode]="showShell" [class.auth-mode]="!showShell">
+	<aside class="sidebar" *ngIf="showShell">
+		<div class="brand-block">
+			<div class="brand-mark">CM</div>
+			<div>
+				<p class="brand-kicker">Committee Management</p>
+				<h1>Warm workspace</h1>
+			</div>
+		</div>
+
+		<nav class="sidebar-nav">
+			<a
+				*ngFor="let item of navItems"
+				[routerLink]="item.path"
+				routerLinkActive="active"
+				[routerLinkActiveOptions]="{ exact: item.path === '/dashboard' }"
+				class="nav-item"
+			>
+				{{ item.label }}
+			</a>
+		</nav>
+
+		<div class="profile-section">
+			<a [routerLink]="'/profile'" class="profile-button">My Profile</a>
+		</div>
+
+		<button *ngIf="showShell" type="button" class="sidebar-button-small" (click)="logout()">Sign out</button>
+	</aside>
+
+	<main class="app-main">
+		<router-outlet></router-outlet>
+	</main>
+</div>

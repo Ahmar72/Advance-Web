@@ -1,0 +1,36 @@
+<div class="notifications-shell">
+  <div class="header">
+    <div>
+      <a routerLink="/dashboard" class="back-link">← Dashboard</a>
+      <h1>Notifications</h1>
+      <p>{{ unreadCount() }} unread updates for committees, turns, and payments.</p>
+    </div>
+    <button (click)="markAllRead()" [disabled]="!notifications.length">Mark all read</button>
+  </div>
+
+  <div class="status" *ngIf="isLoading">Loading notifications...</div>
+  <div class="status error" *ngIf="error">{{ error }}</div>
+
+  <div class="empty-state" *ngIf="!isLoading && !error && !notifications.length">
+    <h2>No notifications yet</h2>
+    <p>You’ll see join requests, payment updates, and cycle reminders here.</p>
+  </div>
+
+  <div class="notification-list" *ngIf="!isLoading && !error && notifications.length">
+    <article class="notification-card" *ngFor="let notification of notifications" [class.read]="notification.is_read">
+      <div class="card-top">
+        <strong>{{ notification.title }}</strong>
+        <span>{{ notification.type }}</span>
+      </div>
+      <p>{{ notification.body || 'No additional details.' }}</p>
+      <div class="notification-meta" *ngIf="notification.data">
+        <small *ngIf="notification.data['committee_title']">Committee: {{ notification.data['committee_title'] }}</small>
+        <small *ngIf="notification.data['cycle_number']">Cycle #{{ notification.data['cycle_number'] }}</small>
+        <small *ngIf="notification.data['amount']">Amount: {{ notification.data['amount'] }}</small>
+        <small *ngIf="notification.data['member_name']">Member: {{ notification.data['member_name'] }}</small>
+      </div>
+      <small>{{ formatTimestamp(notification.created_at) }}</small>
+      <button *ngIf="!notification.is_read" (click)="markRead(notification.id)">Mark read</button>
+    </article>
+  </div>
+</div>

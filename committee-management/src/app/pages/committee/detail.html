@@ -1,0 +1,239 @@
+<div class="detail-shell" *ngIf="committee; else loading">
+  <div class="header-card">
+    <div>
+      <a routerLink="/discover" class="back-link">← Back to discover</a>
+      <h1>{{ committee.title }}</h1>
+      <p>{{ committee.description || 'No description provided.' }}</p>
+    </div>
+    <div class="progress-box">
+      <span>How far along</span>
+      <strong>{{ committee.progressPercentage }}%</strong>
+      <div class="bar"><div class="fill" [style.width.%]="committee.progressPercentage"></div></div>
+    </div>
+  </div>
+
+  <section class="intro-grid">
+    <article class="panel accent-panel">
+      <h2>What this page is for</h2>
+      <p>See who is in the committee, what cycle is next, and record payments or updates in one place.</p>
+    </article>
+
+    <article class="panel accent-panel soft">
+      <h2>Quick guide</h2>
+      <p>Use the member section to add people, the cycle section to set the next turn, and the payment section to log each contribution.</p>
+    </article>
+  </section>
+
+  <section class="stats-grid">
+    <article><span>Monthly contribution</span><strong>{{ formatCurrency(committee.monthly_amount) }}</strong></article>
+    <article><span>Duration</span><strong>{{ committee.duration_months }} months</strong></article>
+    <article><span>Group size</span><strong>{{ committee.currentMembers }} / {{ committee.max_members }}</strong></article>
+    <article><span>Finished cycles</span><strong>{{ committee.completedCycles }}</strong></article>
+  </section>
+
+  <section class="info-grid">
+    <article class="panel">
+      <h2>Creator</h2>
+      <p><strong>{{ committee.creator_profile?.display_name || 'Unknown' }}</strong></p>
+      <p>Reputation: {{ committee.creator_profile?.reputation_score || 0 }}</p>
+      <p>Experience: {{ committee.creator_profile?.experience_score || 0 }}</p>
+    </article>
+
+    <article class="panel">
+      <h2>Next turn</h2>
+      <p *ngIf="committee.nextRecipient; else noNext">
+        {{ committee.nextRecipient.full_name }} is next in line.
+      </p>
+      <ng-template #noNext>
+        <p>No pending recipient is available yet.</p>
+      </ng-template>
+    </article>
+  </section>
+
+  <section class="panel">
+    <h2>Members</h2>
+    <p class="panel-help">These are the people taking part in the committee.</p>
+    <div class="member-list">
+      <article class="member-card" *ngFor="let member of committee.members">
+        <strong>{{ member.full_name }}</strong>
+        <span>Order #{{ member.join_order }} <ng-container *ngIf="member.is_creator">(creator)</ng-container></span>
+        <small>{{ member.email_or_phone || 'No contact info' }}</small>
+      </article>
+    </div>
+
+    <div class="add-member-section" *ngIf="canManageCommittee">
+      <h3>➕ Add a new member</h3>
+      <p>Expand the form below to add members to your committee. Fill in their name and contact information at minimum.</p>
+      <div class="member-form">
+        <label>
+          <span>Member name *</span>
+          <input [(ngModel)]="memberForm.full_name" placeholder="Full name" />
+        </label>
+        <label>
+          <span>Contact *</span>
+          <input [(ngModel)]="memberForm.email_or_phone" placeholder="Email or phone number" />
+        </label>
+      </div>
+      <details class="advanced-box">
+        <summary>Optional: Payment details & other info</summary>
+        <div class="member-form advanced-grid">
+          <label>
+            <span>Payment ID</span>
+            <input [(ngModel)]="memberForm.payment_identifier" placeholder="Transaction ID or payment method ID" />
+          </label>
+          <label>
+            <span>IBAN</span>
+            <input [(ngModel)]="memberForm.iban" placeholder="International Bank Account Number" />
+          </label>
+          <label>
+            <span>Bank account ID</span>
+            <input [(ngModel)]="memberForm.bank_account_id" placeholder="Local bank account ID" />
+          </label>
+          <label class="full">
+            <span>Other payment details (JSON)</span>
+            <textarea [(ngModel)]="memberForm.other_payment_details" rows="3" placeholder='{"paypal":"user@example.com","note":"optional"}'></textarea>
+          </label>
+        </div>
+      </details>
+      <button type="button" (click)="addMember()">Add member</button>
+      <div class="error" *ngIf="error">{{ error }}</div>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="committee.cycles.length">
+    <h2>Cycles</h2>
+    <p class="panel-help">Every cycle shows whose turn it is and when it should happen.</p>
+    <div class="cycle-list">
+      <article class="cycle-card" *ngFor="let cycle of committee.cycles">
+        <strong>Month {{ cycle.cycle_number }}</strong>
+        <span>{{ cycle.status }}</span>
+        <small>Scheduled: {{ cycle.scheduled_date }}</small>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel creator-tools" *ngIf="canManageCommittee">
+    <h2>Set next cycle</h2>
+    <p class="panel-help">Choose the next member and date. Status can stay pending unless you are closing the cycle now.</p>
+    <div class="member-form cycle-form">
+      <label>
+        <span>Cycle #</span>
+        <input type="number" [(ngModel)]="cycleForm.cycle_number" min="1" />
+      </label>
+      <label>
+        <span>When should it happen?</span>
+        <input type="date" [(ngModel)]="cycleForm.scheduled_date" />
+      </label>
+      <label>
+        <span>Who should receive it?</span>
+        <select [(ngModel)]="cycleForm.recipient_member_id">
+          <option value="">Choose member</option>
+          <option *ngFor="let member of committee.members" [value]="member.id">
+            {{ member.full_name }}
+          </option>
+        </select>
+      </label>
+      <label>
+        <span>Status</span>
+        <select [(ngModel)]="cycleForm.status">
+          <option value="pending">Pending</option>
+          <option value="in_progress">In progress</option>
+          <option value="completed">Completed</option>
+        </select>
+      </label>
+    </div>
+
+      <section class="panel creator-tools" *ngIf="canManageCommittee && committee.pendingMembers?.length">
+        <h2>Join requests</h2>
+        <p class="panel-help">People asked to join this committee. Approve or reject each one.</p>
+        <div class="request-list">
+          <article class="request-card" *ngFor="let member of committee.pendingMembers">
+            <strong>{{ member.full_name }}</strong>
+            <small>{{ member.email_or_phone || 'No contact info' }}</small>
+            <div class="request-actions">
+              <button type="button" class="approve-btn" (click)="approveRequest(member)">Approve</button>
+              <button type="button" class="reject-btn" (click)="rejectRequest(member)">Reject</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    <button type="button" (click)="addCycle()">Create cycle</button>
+  </section>
+
+  <section class="panel creator-tools">
+    <h2>Record payment</h2>
+    <p class="panel-help">Keep the main details visible. Optional proof and reference can stay empty if you do not have them.</p>
+    <div class="member-form payment-form">
+      <label>
+        <span>Choose cycle</span>
+        <select [(ngModel)]="paymentForm.cycle_id">
+          <option value="">Choose cycle</option>
+          <option *ngFor="let cycle of committee.cycles" [value]="cycle.id">
+            Month {{ cycle.cycle_number }} - {{ cycle.status }}
+          </option>
+        </select>
+      </label>
+      <label>
+        <span>Who paid?</span>
+        <select [(ngModel)]="paymentForm.payer_member_id">
+          <option value="">Choose member</option>
+          <option *ngFor="let member of committee.members" [value]="member.id">
+            {{ member.full_name }}
+          </option>
+        </select>
+      </label>
+      <label>
+        <span>Amount paid</span>
+        <input type="number" [(ngModel)]="paymentForm.amount" min="1" step="0.01" />
+      </label>
+      <label>
+        <span>Payment status</span>
+        <select [(ngModel)]="paymentForm.payment_status">
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="failed">Failed</option>
+          <option value="late">Late</option>
+        </select>
+      </label>
+    </div>
+    <details class="advanced-box">
+      <summary>Optional payment details</summary>
+      <div class="member-form advanced-grid">
+        <label>
+          <span>Reference / transaction ID</span>
+          <input [(ngModel)]="paymentForm.reference" placeholder="Transaction reference" />
+        </label>
+        <label>
+          <span>Proof link</span>
+          <input [(ngModel)]="paymentForm.proof_url" placeholder="Receipt link" />
+        </label>
+        <label>
+          <span>Paid at</span>
+          <input type="datetime-local" [(ngModel)]="paymentForm.paid_at" />
+        </label>
+      </div>
+    </details>
+    <button type="button" (click)="addPayment()">Save payment</button>
+  </section>
+
+  <section class="panel" *ngIf="committee.payments.length">
+    <h2>Recent payments</h2>
+    <div class="payment-list">
+      <article class="payment-card" *ngFor="let payment of committee.payments">
+        <strong>{{ formatCurrency(payment.amount) }}</strong>
+        <span>{{ payment.payment_status }}</span>
+        <small>{{ payment.reference || 'No reference' }}</small>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel creator-tools" *ngIf="canManageCommittee">
+    <h2>Delete committee</h2>
+    <p class="panel-help">Only the creator can remove this committee permanently.</p>
+    <button type="button" class="danger-btn" (click)="deleteCommittee()">Delete committee</button>
+  </section>
+</div>
+
+<ng-template #loading>
+  <div class="detail-shell loading">{{ isLoading ? 'Loading committee...' : 'Committee not found.' }}</div>
+</ng-template>

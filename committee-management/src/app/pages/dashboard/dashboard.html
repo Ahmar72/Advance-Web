@@ -1,0 +1,91 @@
+<div class="dashboard-shell">
+  <section class="hero-card" *ngIf="!isLoading; else loading">
+    <div>
+      <p class="eyebrow">My activity</p>
+      <h1>Analytics for your committee journey.</h1>
+      <p class="lead">See your commitments, ownership, and recent activity in one calm dashboard.</p>
+    </div>
+  </section>
+
+  <section class="stats-grid" *ngIf="!isLoading && !myCommitteesLoading">
+    <article class="stat-card">
+      <span>Total committees</span>
+      <strong>{{ totalCommittees }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>Active committees</span>
+      <strong>{{ activeCommittees }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>Owned by you</span>
+      <strong>{{ creatorCommittees }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>Monthly commitment</span>
+      <strong>{{ totalMonthlyCommitment | currency:'USD':'symbol':'1.0-0' }}</strong>
+    </article>
+  </section>
+
+  <section class="analytics-card" *ngIf="!isLoading && !myCommitteesLoading">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Graph</p>
+        <h2>Monthly commitment by committee</h2>
+      </div>
+      <p>Higher bars mean a larger monthly contribution.</p>
+    </div>
+
+    <div class="chart" *ngIf="chartData.length; else emptyChart">
+      <article class="chart-row" *ngFor="let item of chartData">
+        <div class="chart-meta">
+          <strong>{{ item.title }}</strong>
+          <span>{{ item.value | currency:'USD':'symbol':'1.0-0' }}</span>
+        </div>
+        <div class="chart-track">
+          <div class="chart-fill" [style.width.%]="item.percent"></div>
+        </div>
+      </article>
+    </div>
+
+    <ng-template #emptyChart>
+      <div class="empty-chart">
+        <h3>No committee activity yet</h3>
+        <p>Create or join a committee to see your analytics here.</p>
+      </div>
+    </ng-template>
+  </section>
+
+  <section class="activity-card" *ngIf="!isLoading && !myCommitteesLoading">
+    <div class="section-heading compact">
+      <div>
+        <p class="eyebrow">Activity</p>
+        <h2>Recent movement</h2>
+      </div>
+      <p>Your latest committee updates and ownership history.</p>
+    </div>
+
+    <div class="activity-list" *ngIf="activityItems.length; else noActivity">
+      <article class="activity-item" *ngFor="let item of activityItems">
+        <div>
+          <strong>{{ item.title }}</strong>
+          <p>{{ item.detail }}</p>
+        </div>
+        <div class="activity-meta">
+          <span>{{ item.meta }}</span>
+          <small>{{ item.time }}</small>
+        </div>
+      </article>
+    </div>
+
+    <ng-template #noActivity>
+      <div class="empty-chart">
+        <h3>No activity yet</h3>
+        <p>Once you join or create committees, your activity feed will appear here.</p>
+      </div>
+    </ng-template>
+  </section>
+</div>
+
+<ng-template #loading>
+  <div class="loading">Loading dashboard...</div>
+</ng-template>

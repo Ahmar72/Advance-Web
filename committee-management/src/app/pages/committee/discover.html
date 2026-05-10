@@ -1,0 +1,77 @@
+<div class="discover-shell">
+  <section class="hero-panel">
+    <div class="hero-copy">
+      <a routerLink="/dashboard" class="back-link">← Dashboard</a>
+      <p class="eyebrow">Discover committees</p>
+      <h1>Curated savings committees, visible in one clean collection.</h1>
+      <p class="lead">Browse active committees, compare contribution plans, and join the one that feels right.</p>
+      <div class="hero-actions">
+        <a routerLink="/committee/create" class="primary-link">Create committee</a>
+        <span class="hero-note">{{ committees.length }} live committees</span>
+      </div>
+    </div>
+    <aside class="hero-aside">
+      <div class="metric">
+        <span>Visible committees</span>
+        <strong>{{ committees.length }}</strong>
+      </div>
+      <div class="metric">
+        <span>Join mode</span>
+        <strong>{{ currentUserId ? 'Signed in' : 'Preview' }}</strong>
+      </div>
+      <div class="metric">
+        <span>Theme direction</span>
+        <strong>Warm editorial</strong>
+      </div>
+    </aside>
+  </section>
+
+  <div class="status" *ngIf="isLoading">Loading committees...</div>
+  <div class="status error" *ngIf="error">{{ error }}</div>
+  <div class="empty-state" *ngIf="!isLoading && !error && !committees.length">
+    <h2>No committees yet</h2>
+    <p>Be the first to create one or come back after a creator publishes a new committee.</p>
+    <a routerLink="/committee/create" class="primary-link">Create committee</a>
+  </div>
+
+  <div class="card-grid" *ngIf="!isLoading && !error && committees.length">
+    <article class="committee-card" *ngFor="let committee of committees">
+      <div class="card-visual">
+        <span class="badge">{{ committee.status }}</span>
+        <div>
+          <p class="visual-label">Committee</p>
+          <h2>{{ committee.title }}</h2>
+        </div>
+      </div>
+
+      <p class="committee-description">{{ committee.description || 'No description provided.' }}</p>
+
+      <div class="progress-row" *ngIf="committee.progress_percentage !== undefined">
+        <span>Progress</span>
+        <strong>{{ committee.progress_percentage }}%</strong>
+      </div>
+      <div class="bar" *ngIf="committee.progress_percentage !== undefined">
+        <div class="fill" [style.width.%]="committee.progress_percentage"></div>
+      </div>
+
+      <div class="meta-grid">
+        <div><span>Monthly amount</span><strong>{{ formatCurrency(committee.monthly_amount) }}</strong></div>
+        <div><span>Duration</span><strong>{{ committee.duration_months }} months</strong></div>
+        <div><span>Members</span><strong>{{ committee.current_members }} / {{ committee.max_members }}</strong></div>
+        <div><span>Creator reputation</span><strong>{{ committee.reputation_score }}</strong></div>
+        <div *ngIf="committee.completed_cycles !== undefined"><span>Completed cycles</span><strong>{{ committee.completed_cycles }}</strong></div>
+        <div *ngIf="committee.total_cycles !== undefined"><span>Total cycles</span><strong>{{ committee.total_cycles }}</strong></div>
+      </div>
+
+      <div class="creator-row">
+        <span>Created by</span>
+        <strong>{{ committee.creator_name }}</strong>
+      </div>
+
+      <div class="card-actions">
+        <a class="details-link" [routerLink]="['/committee', committee.id]">View details →</a>
+        <button type="button" class="join-btn" (click)="requestJoin(committee.id)">Request to join</button>
+      </div>
+    </article>
+  </div>
+</div>

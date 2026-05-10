@@ -1,0 +1,42 @@
+<div class="profile-shell">
+  <div class="profile-header">
+    <a routerLink="/dashboard" class="back-link">← Dashboard</a>
+  </div>
+
+  <section class="profile-card" *ngIf="!isLoading">
+    <div class="profile-content">
+      <p class="eyebrow">Your Profile</p>
+      <h1>{{ userLabel }}</h1>
+      <p class="email">{{ currentUser?.email }}</p>
+    </div>
+  </section>
+
+  <section class="stats-section" *ngIf="!isLoading">
+    <div class="stat-box">
+      <span class="stat-label">Total Committees</span>
+      <strong class="stat-value">{{ totalCommittees }}</strong>
+    </div>
+    <div class="stat-box">
+      <span class="stat-label">Groups Administered</span>
+      <strong class="stat-value">{{ administeredGroups }}</strong>
+    </div>
+  </section>
+
+  <section class="committees-section" *ngIf="!isLoading && myCommittees.length > 0">
+    <p class="eyebrow">Your Committees</p>
+    <h2>Memberships & Owned Groups</h2>
+    <div class="committees-list">
+      <div class="committee-item" *ngFor="let committee of myCommittees">
+        <strong>{{ committee.title }}</strong>
+        <span class="role-badge" [class.creator]="committee.role === 'creator'">
+          {{ committee.role === 'creator' ? 'Administrator' : 'Member' }}
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="empty-state" *ngIf="!isLoading && myCommittees.length === 0">
+    <p>You haven't joined any committees yet.</p>
+    <a routerLink="/discover" class="discover-link">Discover Committees</a>
+  </section>
+</div>

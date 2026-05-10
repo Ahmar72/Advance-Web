@@ -1,0 +1,87 @@
+<div class="page-shell">
+  <div class="panel">
+    <a routerLink="/dashboard" class="back-link">← Back to dashboard</a>
+    <div class="hero-row">
+      <div>
+        <h1>Create a Committee</h1>
+        <p class="subtext">Keep it simple: choose a name, a monthly amount, how long it runs, and how many people can join.</p>
+      </div>
+      <div class="hero-chip-row">
+        <span class="hero-chip">Simple setup</span>
+        <span class="hero-chip">Clear fields</span>
+        <span class="hero-chip">Dark glass theme</span>
+      </div>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="committee-form">
+      <section class="form-grid">
+        <div class="form-section">
+          <h2>Basic details</h2>
+          <label>
+            <span>Committee name</span>
+            <input type="text" formControlName="title" placeholder="e.g. Monthly Savings Circle" />
+            <small *ngIf="title.touched && title.invalid">A name is required.</small>
+          </label>
+
+          <label>
+            <span>What is this committee for?</span>
+            <textarea formControlName="description" rows="5" placeholder="A short explanation of the purpose, rules, and who should join."></textarea>
+            <small>Use plain words. This helps members understand the group quickly.</small>
+          </label>
+        </div>
+
+        <aside class="summary-card">
+          <h2>Quick summary</h2>
+          <div class="summary-item">
+            <span>Monthly contribution</span>
+            <strong>{{ monthlyContributionDisplay }}</strong>
+          </div>
+          <div class="summary-item">
+            <span>Duration</span>
+            <strong>{{ durationMonths.value || 0 }} months</strong>
+          </div>
+          <div class="summary-item">
+            <span>Max people</span>
+            <strong>{{ maxMembers.value || 0 }}</strong>
+          </div>
+          <div class="summary-item">
+            <span>Estimated total pool</span>
+            <strong>{{ estimatedPool }}</strong>
+          </div>
+          <p class="summary-note">These values decide how big the committee is and how much each person contributes every month.</p>
+        </aside>
+      </section>
+
+      <section class="form-section compact-section">
+        <h2>Committee settings</h2>
+        <div class="grid">
+          <label>
+            <span>Monthly contribution</span>
+            <input type="number" formControlName="monthly_amount" min="1" step="0.01" />
+            <small *ngIf="monthlyAmount.touched && monthlyAmount.invalid">Enter a monthly amount.</small>
+          </label>
+
+          <label>
+            <span>How many months?</span>
+            <input type="number" formControlName="duration_months" min="1" max="120" />
+            <small *ngIf="durationMonths.touched && durationMonths.invalid">Enter a valid duration.</small>
+          </label>
+
+          <label>
+            <span>How many people can join?</span>
+            <input type="number" formControlName="max_members" min="2" max="10" />
+            <small *ngIf="maxMembers.touched && maxMembers.invalid">Choose between 2 and 10 members.</small>
+          </label>
+        </div>
+      </section>
+
+      <div class="error" *ngIf="error">{{ error }}</div>
+
+      <div class="actions">
+        <button type="submit" [disabled]="isSubmitting">
+          {{ isSubmitting ? 'Creating...' : 'Create Committee' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

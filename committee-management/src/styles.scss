@@ -1,0 +1,130 @@
+:root {
+	color-scheme: light;
+	--theme-bg: #fbfaf6;
+	--theme-surface: rgba(255, 255, 255, 0.9);
+	--theme-surface-strong: #ffffff;
+	--theme-border: rgba(92, 112, 79, 0.16);
+	--theme-text: #1f2937;
+	--theme-muted: #5f6b75;
+	--theme-accent: #8a6a2b;
+	--theme-accent-strong: #3d3021;
+	--theme-shadow: 0 18px 50px rgba(61, 45, 23, 0.12);
+}
+
+html,
+body {
+	margin: 0;
+	min-height: 100%;
+	background: var(--theme-bg);
+	color: var(--theme-text);
+	font-family: Inter, system-ui, sans-serif;
+	font-size: 16px;
+	line-height: 1.5;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+a {
+	color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+}
+
+.app-layout.shell-mode app-dashboard,
+.app-layout.shell-mode app-committee-discover,
+.app-layout.shell-mode app-my-committees,
+.app-layout.shell-mode app-committee-create,
+.app-layout.shell-mode app-committee-detail,
+.app-layout.shell-mode app-notifications {
+	display: block;
+	min-height: auto !important;
+	background: transparent !important;
+	color: var(--theme-text) !important;
+}
+
+.app-layout.shell-mode app-dashboard,
+.app-layout.shell-mode app-committee-discover,
+.app-layout.shell-mode app-my-committees,
+.app-layout.shell-mode app-committee-create,
+.app-layout.shell-mode app-committee-detail,
+.app-layout.shell-mode app-notifications,
+.app-layout.shell-mode .app-main :is(.panel, .card, .committee-card, .status, .empty-state, .notification-card, .summary-card, .form-section, .header-card, .my-committee-item, .metric, .stat-card, .hero-card, .analytics-card, .activity-card) {
+	background: var(--theme-surface) !important;
+	border-color: var(--theme-border) !important;
+	box-shadow: var(--theme-shadow) !important;
+	color: var(--theme-text) !important;
+}
+
+.app-layout.shell-mode .app-main :is(p, span, small, label, li) {
+	color: var(--theme-muted);
+}
+
+.app-layout.shell-mode .app-main :is(h1, h2, h3, strong) {
+	color: var(--theme-text);
+}
+
+.app-layout.shell-mode .app-main :is(h1) {
+	font-size: clamp(2rem, 3vw, 3.25rem) !important;
+	line-height: 1.05 !important;
+	letter-spacing: -0.03em;
+}
+
+.app-layout.shell-mode .app-main :is(h2) {
+	font-size: clamp(1.25rem, 2vw, 1.75rem) !important;
+	line-height: 1.15 !important;
+}
+
+.app-layout.shell-mode .app-main :is(h3) {
+	font-size: 1.05rem !important;
+	line-height: 1.25 !important;
+}
+
+.app-layout.shell-mode .app-main :is(button, .primary-link, .join-btn, .submit-button, .logout-btn, .sidebar-button, .danger-btn, .approve-btn, .reject-btn) {
+	font-size: 0.95rem !important;
+	line-height: 1.15 !important;
+	min-height: 42px;
+}
+
+.app-layout.shell-mode .app-main :is(input, textarea, select) {
+	background: var(--theme-surface-strong) !important;
+	border: 1px solid var(--theme-border) !important;
+	color: var(--theme-text) !important;
+}
+
+.app-layout.shell-mode .app-main :is(button, .primary-link, .join-btn, .submit-button, .logout-btn, .sidebar-button, .danger-btn, .approve-btn, .reject-btn) {
+	background: linear-gradient(135deg, var(--theme-accent-strong), #1f1a14) !important;
+	color: #fffaf0 !important;
+	border-color: rgba(61, 48, 33, 0.14) !important;
+}
+
+.app-layout.shell-mode .app-main :is(.danger-btn, .reject-btn) {
+	background: linear-gradient(135deg, #7b3126, #4a1f17) !important;
+}
+
+.app-layout.shell-mode .app-main :is(.back-link, .details-link, .card-link) {
+	color: var(--theme-accent) !important;
+}
+
+.app-layout.shell-mode .app-main :is(.notification-card p, .committee-card p, .my-committee-item p, .panel p, .summary-note, .lead, .subtext, .committee-description, .item-description) {
+	color: #4b5563 !important;
+}
+
+.app-layout.shell-mode .app-main :is(.notification-card small, .notification-card span, .card-top span, .meta-grid span, .creator-row span, .item-meta, .activity-meta span, .activity-meta small) {
+	color: #667085 !important;
+}
+
+.app-layout.shell-mode .app-main :is(.notification-card, .committee-card, .my-committee-item, .panel, .status, .empty-state, .metric, .stat-card, .hero-card, .analytics-card, .activity-card) {
+	color: var(--theme-text) !important;
+}
+
+.app-layout.shell-mode .app-main :is(.notification-card .notification-meta small, .badge, .hero-chip, .summary-item, .activity-item, .chart-track) {
+	background-color: rgba(245, 239, 228, 0.95) !important;
+}
+

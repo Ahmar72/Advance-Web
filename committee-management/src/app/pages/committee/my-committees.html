@@ -1,0 +1,37 @@
+<div class="my-shell">
+  <div class="hero">
+    <div>
+      <a routerLink="/dashboard" class="back-link">← Dashboard</a>
+      <h1>My Committees</h1>
+      <p>Everything you created, joined, or are waiting on approval for lives here.</p>
+    </div>
+    <a routerLink="/discover" class="primary-link">Explore more committees</a>
+  </div>
+
+  <div class="status" *ngIf="isLoading">Loading your committees...</div>
+  <div class="status error" *ngIf="error">{{ error }}</div>
+  <div class="card-grid" *ngIf="!isLoading && !error">
+    <p *ngIf="!committees.length" class="status">You have no committees yet.</p>
+    <article class="committee-card" *ngFor="let committee of committees">
+      <div class="card-top">
+        <div>
+          <h2>{{ committee.title }}</h2>
+          <p>{{ committee.description || 'No description provided.' }}</p>
+        </div>
+        <span class="badge">{{ committee.role }}</span>
+      </div>
+
+      <div class="meta-grid">
+        <div><span>Status</span><strong>{{ committee.status }}</strong></div>
+        <div><span>Members</span><strong>{{ committee.current_members }} / {{ committee.max_members }}</strong></div>
+        <div><span>Duration</span><strong>{{ committee.duration_months }} months</strong></div>
+        <div><span>Progress</span><strong>{{ committee.progress_percentage || 0 }}%</strong></div>
+      </div>
+
+      <div class="card-actions">
+        <a class="details-link" [routerLink]="['/committee', committee.id]">Open details →</a>
+        <button *ngIf="committee.role === 'creator'" type="button" class="danger-btn" (click)="deleteCommittee(committee)">Delete</button>
+      </div>
+    </article>
+  </div>
+</div>

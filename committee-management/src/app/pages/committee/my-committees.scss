@@ -1,0 +1,150 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.my-shell {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.back-link,
+.primary-link,
+.details-link {
+  color: #8a6a2b;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.primary-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3d3021, #1f1a14);
+  color: #fffaf0;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(61, 48, 33, 0.14);
+}
+
+h1 {
+  font-size: clamp(2rem, 3vw, 3.1rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin: 8px 0;
+}
+
+p {
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.status {
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(92, 112, 79, 0.14);
+  color: #1f2937;
+}
+
+.status.error {
+  border-color: rgba(239, 68, 68, 0.24);
+  color: #991b1b;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.committee-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(92, 112, 79, 0.14);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 18px 50px rgba(61, 45, 23, 0.11);
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+h2 {
+  margin: 0 0 8px;
+}
+
+.badge {
+  border-radius: 999px;
+  background: rgba(245, 239, 228, 0.95);
+  color: #7c5b1d;
+  padding: 8px 12px;
+  height: fit-content;
+  text-transform: capitalize;
+  border: 1px solid rgba(124, 91, 29, 0.18);
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.meta-grid span {
+  display: block;
+  color: #667085;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.meta-grid strong {
+  color: #111827;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.danger-btn {
+  border: 1px solid rgba(61, 48, 33, 0.14);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #3d3021, #1f1a14);
+  color: #fffaf0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero,
+  .card-top {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .my-shell {
+    padding-inline: 16px;
+  }
+}
