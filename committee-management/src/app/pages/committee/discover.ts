@@ -16,6 +16,7 @@ import { CommitteeService, CommitteeSummary } from '../../services/committee.ser
 export class CommitteeDiscoverComponent implements OnInit {
   committees: CommitteeSummary[] = [];
   isLoading = true;
+  joiningCommittees = new Set<string>();
   error: string | null = null;
   currentUserId: string | null = null;
   currentUserEmail: string | null = null;
@@ -60,9 +61,10 @@ export class CommitteeDiscoverComponent implements OnInit {
           max_members: c.max_members || 0,
           duration_months: c.duration_months || 0,
           status: c.status || 'open',
-          creator_name: (c.creator_id as any) || '',
+          creator_name: c.creator_id === this.currentUserId ? 'You' : 'New Creator',
           reputation_score: 0,
           current_members: 1,
+          creator_id: c.creator_id,
           created_at: c.created_at || new Date().toISOString(),
         };
 
@@ -122,13 +124,24 @@ export class CommitteeDiscoverComponent implements OnInit {
       return;
     }
 
-    const { error } = await this.committeeService.requestJoinCommittee(committeeId, this.currentUserId, this.currentUserEmail || undefined);
-    if (error) {
-      this.error = error.message || 'Unable to submit join request';
-      return;
-    }
+    if (this.joiningCommittees.has(committeeId)) return;
+    
+    this.joiningCommittees.add(committeeId);
+    this.cdr.detectChanges();
 
-    await this.loadCommittees();
+    try {
+      const { error } = await this.committeeService.requestJoinCommittee(committeeId, this.currentUserId, this.currentUserEmail || undefined);
+      if (error) {
+        this.error = error.message || 'Unable to submit join request';
+      } else {
+        await this.loadCommittees();
+      }
+    } catch (err: any) {
+      this.error = err?.message || 'Unexpected error';
+    } finally {
+      this.joiningCommittees.delete(committeeId);
+      this.cdr.detectChanges();
+    }
   }
 
   formatCurrency(amount: number) {

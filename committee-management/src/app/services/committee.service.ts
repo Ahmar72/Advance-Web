@@ -13,6 +13,7 @@ export interface CommitteeSummary {
   creator_name: string;
   reputation_score: number;
   current_members: number;
+  creator_id: string;
   created_at: string;
   progress_percentage?: number;
   total_cycles?: number;
@@ -290,10 +291,95 @@ export class CommitteeService {
 
   async listDiscoverableCommittees() {
     try {
-      return await this.listDiscoverableCommitteesFallback();
+      // Try fetching from the view first
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('active_committees_with_creator')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        // If the view fails (e.g. due to schema cache issues), fall back to manual join
+        if (this.isApprovalStatusMissingError(error)) {
+          console.warn('View failed due to schema cache/approval_status, falling back...');
+          return await this.listDiscoverableCommitteesFallback(error);
+        }
+        console.error('Error fetching discoverable committees from view:', error);
+        return { data: [] as CommitteeSummary[], error };
+      }
+      
+      const mapped = (data || []).map((row: any) => ({
+        ...row,
+        creator_id: row.creator_id || '', // Ensure creator_id is mapped from view or fallback
+      })) as CommitteeSummary[];
+
+      return { data: mapped, error: null };
     } catch (err) {
       console.error('Exception while fetching discoverable committees', err);
       return await this.listDiscoverableCommitteesFallback(err as any);
+    }
+  }
+
+  async getCommitteeDetail(id: string): Promise<{ data: CommitteeDetail | null; error: any }> {
+    try {
+      console.log('🔄 [Service] Fetching comprehensive committee detail for:', id);
+      const client = this.supabaseService.getClient();
+
+      // Parallel fetch for all related data
+      const [
+        committeeResult,
+        membersResult,
+        cyclesResult,
+        paymentsResult,
+        progressResult
+      ] = await Promise.all([
+        client.from('committees').select('*, profiles(display_name, reputation_score, experience_score, bio, avatar_url)').eq('id', id).single(),
+        client.from('committee_members').select('*').eq('committee_id', id).order('join_order', { ascending: true }),
+        client.from('committee_cycles').select('*').eq('committee_id', id).order('cycle_number', { ascending: true }),
+        client.from('payments').select('*').eq('committee_id', id).order('created_at', { ascending: false }),
+        client.from('committee_progress').select('*').eq('id', id).single()
+      ]);
+
+      if (committeeResult.error) {
+        console.error('❌ [Service] Error fetching committee:', committeeResult.error);
+        return { data: null, error: committeeResult.error };
+      }
+
+      const committee = committeeResult.data;
+      const allMembers = (membersResult.data || []) as CommitteeMemberRecord[];
+      
+      const members = allMembers.filter(m => m.approval_status === 'approved');
+      const pendingMembers = allMembers.filter(m => m.approval_status === 'pending' && (m as any).other_payment_details?.request_type === 'join_request');
+      const pendingInvites = allMembers.filter(m => m.approval_status === 'pending' && (m as any).other_payment_details?.request_type === 'invite');
+      
+      const cycles = (cyclesResult.data || []) as CommitteeCycleRecord[];
+      const payments = (paymentsResult.data || []) as PaymentRecord[];
+      const progress = progressResult.data;
+
+      // Resolve next recipient
+      const nextCycle = cycles.find(c => c.status !== 'completed');
+      const nextRecipient = nextCycle 
+        ? (members.find(m => m.id === nextCycle.recipient_member_id) || null)
+        : null;
+
+      const detail: CommitteeDetail = {
+        ...(committee as any),
+        creator_profile: (committee as any).profiles,
+        members,
+        pendingMembers,
+        pendingInvites,
+        cycles,
+        payments,
+        currentMembers: members.length,
+        completedCycles: Number(progress?.completed_cycles || 0),
+        progressPercentage: Number(progress?.progress_percentage || 0),
+        nextRecipient
+      };
+
+      return { data: detail, error: null };
+    } catch (err) {
+      console.error('❌ [Service] Unexpected error in getCommitteeDetail:', err);
+      return { data: null, error: err as any };
     }
   }
 
@@ -379,6 +465,7 @@ export class CommitteeService {
           creator_name: profile.display_name || 'Unknown',
           reputation_score: Number(profile.reputation_score || 0),
           current_members: Number(memberCounts.get(row.id) || 0),
+          creator_id: row.creator_id,
           created_at: row.created_at,
           progress_percentage: progress.progress_percentage !== undefined ? Number(progress.progress_percentage || 0) : undefined,
           total_cycles: progress.total_cycles !== undefined ? Number(progress.total_cycles || 0) : undefined,
@@ -486,19 +573,57 @@ export class CommitteeService {
       const pendingContact = requesterEmail || null;
 
       // Check if user already a member or has a pending request for this committee.
-      const existing = await client
+      // We check both user_id and email_or_phone (if provided)
+      const { data: existingMember, error: existingError } = await client
         .from('committee_members')
-        .select('id')
+        .select('id, user_id, email_or_phone')
         .eq('committee_id', committeeId)
         .or(`user_id.eq.${userId}${pendingContact ? `,email_or_phone.eq.${pendingContact}` : ''}`)
         .maybeSingle();
 
-      if (existing.error) {
-        return { data: null, error: existing.error as any };
+      if (existingError) {
+        console.error('Error checking existing membership:', existingError);
+        return { data: null, error: existingError as any };
       }
 
-      if (existing.data) {
-        return { data: existing.data as any, error: new Error('You already have a membership or pending request in this committee') as any };
+      if (existingMember) {
+        if (!existingMember.user_id && userId) {
+          // Link the existing "ghost" record to the logged-in user
+          const { error: updateError } = await client
+            .from('committee_members')
+            .update({ user_id: userId, approval_status: 'pending' })
+            .eq('id', existingMember.id);
+            
+          if (!updateError) {
+            // Send notification to the creator
+            try {
+              const { data: committee } = await client.from('committees').select('title, creator_id').eq('id', committeeId).single();
+              const { data: profile } = await client.from('profiles').select('display_name').eq('id', userId).single();
+              
+              if (committee) {
+                await client.from('notifications').insert({
+                  user_id: committee.creator_id,
+                  type: 'join_request',
+                  title: `Join request for ${committee.title}`,
+                  body: `${profile?.display_name || 'A user'} wants to join this committee.`,
+                  data: {
+                    committee_id: committeeId,
+                    requester_id: userId,
+                    requester_name: profile?.display_name || 'Member',
+                    member_id: existingMember.id,
+                    request_type: 'join_request',
+                  },
+                });
+              }
+            } catch (notifyErr) {
+              console.error('Failed to send notification for linked ghost record:', notifyErr);
+            }
+            
+            try { this.committeeUpdated$.next(committeeId); } catch {}
+            return { data: existingMember as any, error: null };
+          }
+        }
+        return { data: existingMember as any, error: new Error('You already have a membership or pending request in this committee') as any };
       }
 
       // Count current members (without approval_status filter)
@@ -515,14 +640,15 @@ export class CommitteeService {
         return { data: null, error: new Error('This committee is full') as any };
       }
 
-      // Create member record without approval_status
+      // Create member record with 'pending' status
       const memberPayload: Record<string, any> = {
         committee_id: committeeId,
-        user_id: null,
+        user_id: userId, // Set the user_id correctly
         full_name: profile?.display_name || 'Member',
         email_or_phone: pendingContact,
         join_order: Number(approvedCount.count || 0) + 1,
         is_creator: false,
+        approval_status: 'pending', // Explicitly set to pending
         other_payment_details: {
           request_type: 'join_request',
           requester_id: userId,
@@ -567,10 +693,13 @@ export class CommitteeService {
 
     const { data, error } = await client
       .from('committee_members')
-      .update({ user_id: requesterUserId || null })
+      .update({ 
+        user_id: requesterUserId || null,
+        approval_status: 'approved' // Set status to approved
+      })
       .eq('committee_id', committeeId)
       .eq('id', memberId)
-      .select('id,committee_id,user_id,full_name,email_or_phone,join_order,is_creator')
+      .select('id,committee_id,user_id,full_name,email_or_phone,join_order,is_creator,approval_status')
       .single();
 
     if (!error && requesterUserId) {
@@ -611,6 +740,7 @@ export class CommitteeService {
   }
 
   async deleteCommittee(committeeId: string) {
+    console.log('🔄 [Service] Attempting to delete committee:', committeeId);
     const { data, error } = await this.supabaseService
       .getClient()
       .from('committees')
@@ -618,6 +748,13 @@ export class CommitteeService {
       .eq('id', committeeId)
       .select()
       .single();
+
+    if (error) {
+      console.error('❌ [Service] deleteCommittee error:', error);
+    } else {
+      console.log('✅ [Service] deleteCommittee success');
+      try { this.committeeUpdated$.next(committeeId); } catch {}
+    }
 
     return { data: data as CommitteeRecord | null, error };
   }
@@ -866,26 +1003,31 @@ export class CommitteeService {
       // dedupe by id
       const seen = new Set<string>();
       const mapped = rows.filter((r: any) => {
-        if (seen.has(r.id)) return false;
+        if (!r || !r.id || seen.has(r.id)) return false;
         seen.add(r.id);
         return true;
-      }).map((row: any) => ({
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        monthly_amount: Number(row.monthly_amount),
-        max_members: Number(row.max_members),
-        duration_months: Number(row.duration_months),
-        status: row.status,
-        creator_name: row.profiles?.display_name || 'Unknown',
-        reputation_score: Number(row.profiles?.reputation_score || 0),
-        current_members: Number(memberCounts.get(row.id) || 0) || Number(row.current_members || 0) || 0,
-        created_at: row.created_at,
-        progress_percentage: Number(progressMap.get(row.id)?.progress_percentage || 0),
-        total_cycles: Number(progressMap.get(row.id)?.total_cycles || 0),
-        completed_cycles: Number(progressMap.get(row.id)?.completed_cycles || 0),
-        role: row.creator_id === userId ? 'creator' : 'member',
-      })) as MyCommitteeSummary[];
+      }).map((row: any) => {
+        // Handle cases where profiles might be an array or object
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        
+        return {
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          monthly_amount: Number(row.monthly_amount),
+          max_members: Number(row.max_members),
+          duration_months: Number(row.duration_months),
+          status: row.status,
+          creator_name: profile?.display_name || 'Unknown',
+          reputation_score: Number(profile?.reputation_score || 0),
+          current_members: Number(memberCounts.get(row.id) || 0) || Number(row.current_members || 0) || 0,
+          created_at: row.created_at,
+          progress_percentage: Number(progressMap.get(row.id)?.progress_percentage || 0),
+          total_cycles: Number(progressMap.get(row.id)?.total_cycles || 0),
+          completed_cycles: Number(progressMap.get(row.id)?.completed_cycles || 0),
+          role: row.creator_id === userId ? 'creator' : 'member',
+        };
+      }) as MyCommitteeSummary[];
 
       return { data: mapped, error: null };
     } catch (err) {

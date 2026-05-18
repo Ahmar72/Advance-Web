@@ -331,6 +331,25 @@ button:hover {
   min-width: 100px;
 }
 
+.error-toast {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: rgba(220, 38, 38, 0.95);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: white;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(220, 38, 38, 0.2);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
 .error {
   margin-top: 12px;
   padding: 12px 14px;

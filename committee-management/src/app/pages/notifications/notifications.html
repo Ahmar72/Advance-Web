@@ -47,7 +47,13 @@
         <small *ngIf="notification.data['member_name']">Member: {{ notification.data['member_name'] }}</small>
       </div>
       <small>{{ formatTimestamp(notification.created_at) }}</small>
-      <button *ngIf="!notification.is_read" (click)="markRead(notification.id)">Mark read</button>
+      
+      <div class="request-actions" *ngIf="notification.type === 'join_request' && !notification.is_read">
+        <button type="button" class="approve-btn" (click)="approveJoinRequestNotification(notification)">Approve</button>
+        <button type="button" class="reject-btn" (click)="rejectJoinRequestNotification(notification)">Reject</button>
+      </div>
+
+      <button *ngIf="!notification.is_read && notification.type !== 'join_request'" (click)="markRead(notification.id)">Mark read</button>
     </article>
   </div>
 </div>

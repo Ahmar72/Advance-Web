@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+
+  --color-primary-50: #f0f7ff;
+  --color-primary-100: #e0effe;
+  --color-primary-200: #bae0fd;
+  --color-primary-300: #7cc8fb;
+  --color-primary-400: #38a9f8;
+  --color-primary-500: #0e8ce2;
+  --color-primary-600: #026fb8;
+  --color-primary-700: #035996;
+  --color-primary-800: #064b7c;
+  --color-primary-900: #0c3f67;
+  --color-primary-950: #082845;
+
+  --animate-shimmer: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #020617;
+}
+
+.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/10 backdrop-blur-md border border-white/20;
+  }
+  .glass-dark {
+    @apply bg-slate-900/40 backdrop-blur-xl border border-slate-800/50;
+  }
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-indigo-400;
+  }
+}
+

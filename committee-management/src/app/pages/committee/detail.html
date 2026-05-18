@@ -2,6 +2,7 @@
   <div class="header-card">
     <div>
       <a routerLink="/discover" class="back-link">← Back to discover</a>
+      <div class="error-toast" *ngIf="error" (click)="error = null">{{ error }} (click to clear)</div>
       <h1>{{ committee.title }}</h1>
       <p>{{ committee.description || 'No description provided.' }}</p>
     </div>
@@ -96,7 +97,6 @@
         </div>
       </details>
       <button type="button" (click)="addMember()">Add member</button>
-      <div class="error" *ngIf="error">{{ error }}</div>
     </div>
   </section>
 
@@ -143,33 +143,36 @@
       </label>
     </div>
 
-      <section class="panel creator-tools" *ngIf="canManageCommittee && committee.pendingMembers?.length">
-        <h2>Join requests</h2>
-        <p class="panel-help">People asked to join this committee. Approve or reject each one.</p>
-        <div class="request-list">
-          <article class="request-card" *ngFor="let member of committee.pendingMembers">
-            <strong>{{ member.full_name }}</strong>
-            <small>{{ member.email_or_phone || 'No contact info' }}</small>
-            <div class="request-actions">
-              <button type="button" class="approve-btn" (click)="approveRequest(member)">Approve</button>
-              <button type="button" class="reject-btn" (click)="rejectRequest(member)">Reject</button>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="panel creator-tools" *ngIf="canManageCommittee && committee.pendingInvites?.length">
-        <h2>Pending invitations</h2>
-        <p class="panel-help">These email invites are waiting for the recipient to accept from their notifications.</p>
-        <div class="request-list">
-          <article class="request-card" *ngFor="let member of committee.pendingInvites">
-            <strong>{{ member.full_name }}</strong>
-            <small>{{ member.email_or_phone || 'No contact info' }}</small>
-            <small>Waiting for invited member to respond</small>
-          </article>
-        </div>
-      </section>
     <button type="button" (click)="addCycle()">Create cycle</button>
+  </section>
+
+  <section class="panel creator-tools" *ngIf="canManageCommittee && (committee.pendingMembers?.length || committee.pendingInvites?.length)">
+    <div *ngIf="committee.pendingMembers?.length">
+      <h2>Join requests</h2>
+      <p class="panel-help">People asked to join this committee. Approve or reject each one.</p>
+      <div class="request-list">
+        <article class="request-card" *ngFor="let member of committee.pendingMembers">
+          <strong>{{ member.full_name }}</strong>
+          <small>{{ member.email_or_phone || 'No contact info' }}</small>
+          <div class="request-actions">
+            <button type="button" class="approve-btn" (click)="approveRequest(member)">Approve</button>
+            <button type="button" class="reject-btn" (click)="rejectRequest(member)">Reject</button>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <div *ngIf="committee.pendingInvites?.length" [style.margin-top.px]="committee.pendingMembers?.length ? 24 : 0">
+      <h2>Pending invitations</h2>
+      <p class="panel-help">These email invites are waiting for the recipient to accept.</p>
+      <div class="request-list">
+        <article class="request-card" *ngFor="let member of committee.pendingInvites">
+          <strong>{{ member.full_name }}</strong>
+          <small>{{ member.email_or_phone || 'No contact info' }}</small>
+          <small>Waiting for response</small>
+        </article>
+      </div>
+    </div>
   </section>
 
   <section class="panel creator-tools">
@@ -239,10 +242,17 @@
     </div>
   </section>
 
-  <section class="panel creator-tools" *ngIf="canManageCommittee">
-    <h2>Delete committee</h2>
-    <p class="panel-help">Only the creator can remove this committee permanently.</p>
-    <button type="button" class="danger-btn" (click)="deleteCommittee()">Delete committee</button>
+  <section class="panel creator-tools delete-section" *ngIf="canManageCommittee">
+    <h2>Danger zone</h2>
+    <p class="panel-help">Permanently delete this committee and all its records. This cannot be undone.</p>
+    <button 
+      type="button" 
+      class="danger-btn" 
+      [disabled]="isDeleting"
+      (click)="deleteCommittee()"
+    >
+      {{ isDeleting ? 'Deleting...' : 'Delete committee permanently' }}
+    </button>
   </section>
 </div>
 

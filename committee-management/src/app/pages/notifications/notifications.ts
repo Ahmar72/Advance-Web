@@ -36,6 +36,7 @@ export class NotificationsComponent implements OnInit, OnDestroy {
       if (this.currentUserId) {
         this.loadNotifications();
         this.bindRealtime();
+        this.cdr.detectChanges();
       }
     });
   }
@@ -66,9 +67,9 @@ export class NotificationsComponent implements OnInit, OnDestroy {
 
       this.notifications = data;
       await this.loadPendingInvites();
-      try { this.cdr.detectChanges(); } catch {}
     } finally {
       this.isLoading = false;
+      try { this.cdr.detectChanges(); } catch {}
     }
   }
 
@@ -138,6 +139,40 @@ export class NotificationsComponent implements OnInit, OnDestroy {
     );
 
     if (!error) {
+      await this.loadNotifications();
+    }
+  }
+
+  async approveJoinRequestNotification(notification: NotificationRecord) {
+    const data = notification.data;
+    if (!data['committee_id'] || !data['member_id']) return;
+
+    const { error } = await this.committeeService.approveJoinRequest(
+      data['committee_id'],
+      data['member_id'],
+      data['requester_name'],
+      data['requester_id']
+    );
+
+    if (!error) {
+      await this.committeeService.markNotificationRead(notification.id);
+      await this.loadNotifications();
+    }
+  }
+
+  async rejectJoinRequestNotification(notification: NotificationRecord) {
+    const data = notification.data;
+    if (!data['committee_id'] || !data['member_id']) return;
+
+    const { error } = await this.committeeService.rejectJoinRequest(
+      data['committee_id'],
+      data['member_id'],
+      data['requester_name'],
+      data['requester_id']
+    );
+
+    if (!error) {
+      await this.committeeService.markNotificationRead(notification.id);
       await this.loadNotifications();
     }
   }

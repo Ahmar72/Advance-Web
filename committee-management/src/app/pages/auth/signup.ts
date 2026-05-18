@@ -56,59 +56,29 @@ export class SignupComponent implements OnInit {
 
     this.isLoading = true;
     this.cdr.detectChanges();
-    let timedOut = false;
-    const timeoutHandle = setTimeout(() => {
-      timedOut = true;
-      this.isLoading = false;
-      this.error = 'Authentication is taking too long. Please try again.';
-      this.cdr.detectChanges();
-    }, 15000);
 
     try {
-      const signupPromise = this.authService.signUp(
+      const { error } = await this.authService.signUp(
         this.email,
         this.password,
         this.displayName
       );
 
-      signupPromise
-        .then(({ error }) => {
-          if (timedOut) {
-            return;
-          }
-
-          if (error) {
-            this.error = error.includes('429') || error.toLowerCase().includes('too many')
-              ? 'Too many signup attempts. Please wait a moment and try again.'
-              : error;
-          } else {
-            this.success = 'Sign up successful! Redirecting to dashboard...';
-            setTimeout(() => {
-              this.router.navigate(['/dashboard']);
-            }, 1500);
-          }
-
-          this.isLoading = false;
-          this.cdr.detectChanges();
-        })
-        .catch((err: any) => {
-          if (timedOut) {
-            return;
-          }
-
-          this.error = err?.message || 'Sign up failed';
-          this.isLoading = false;
-          this.cdr.detectChanges();
-        });
-    } catch (err: any) {
-      if (timedOut) {
-        return;
+      if (error) {
+        this.error = error.includes('429') || error.toLowerCase().includes('too many')
+          ? 'Too many signup attempts. Please wait a moment and try again.'
+          : error;
+      } else {
+        this.success = 'Sign up successful! Redirecting to dashboard...';
+        setTimeout(() => {
+          this.router.navigate(['/dashboard']);
+        }, 1500);
       }
+    } catch (err: any) {
       this.error = err?.message || 'Sign up failed';
+    } finally {
       this.isLoading = false;
       this.cdr.detectChanges();
-    } finally {
-      clearTimeout(timeoutHandle);
     }
   }
 }

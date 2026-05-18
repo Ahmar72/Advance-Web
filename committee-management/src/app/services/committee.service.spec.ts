@@ -28,7 +28,12 @@ describe('CommitteeService', () => {
     });
     const select = vi.fn(() => ({ single }));
     const insert = vi.fn(() => ({ select }));
-    const from = vi.fn(() => ({ insert }));
+    const from = vi.fn((table: string) => {
+      if (table === 'profiles') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: 'user-1' }, error: null }) })) })) };
+      }
+      return { insert };
+    });
     supabaseServiceStub.getClient.mockReturnValue({ from });
 
     const result = await service.createCommittee(
@@ -110,15 +115,15 @@ describe('CommitteeService', () => {
       ],
       error: null,
     });
-    const fallbackSelect = vi.fn(() => ({
-      in: vi.fn(() => ({ order: fallbackOrder })),
-    }));
-    const memberSelect = vi.fn(() => ({
-      in: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ data: [{ committee_id: 'committee-2' }], error: null }) })),
-    }));
-    const progressSelect = vi.fn(() => ({
-      in: vi.fn().mockResolvedValue({ data: [], error: null }),
-    }));
+    const fallbackIn = vi.fn(() => ({ order: fallbackOrder }));
+    const fallbackSelect = vi.fn(() => ({ in: fallbackIn }));
+
+    const memberNot = vi.fn().mockResolvedValue({ data: [{ committee_id: 'committee-2' }], error: null });
+    const memberIn = vi.fn(() => ({ not: memberNot }));
+    const memberSelect = vi.fn(() => ({ in: memberIn }));
+
+    const progressIn = vi.fn().mockResolvedValue({ data: [], error: null });
+    const progressSelect = vi.fn(() => ({ in: progressIn }));
 
     supabaseServiceStub.getClient.mockReturnValue({
       from: vi.fn((table: string) => {
@@ -134,7 +139,15 @@ describe('CommitteeService', () => {
         if (table === 'committee_progress') {
           return { select: progressSelect };
         }
-        return { select: vi.fn() };
+        const defaultQuery = {
+          in: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          then: (resolve: any) => resolve({ data: [], error: null })
+        };
+        return { select: vi.fn(() => defaultQuery) };
       }),
     });
 

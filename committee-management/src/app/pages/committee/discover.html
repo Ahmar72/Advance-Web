@@ -70,7 +70,19 @@
 
       <div class="card-actions">
         <a class="details-link" [routerLink]="['/committee', committee.id]">View details →</a>
-        <button type="button" class="join-btn" (click)="requestJoin(committee.id)">Request to join</button>
+        <ng-container *ngIf="committee.creator_id !== currentUserId; else isCreatorTemplate">
+          <button 
+            type="button" 
+            class="join-btn" 
+            [disabled]="joiningCommittees.has(committee.id)"
+            (click)="requestJoin(committee.id)"
+          >
+            {{ joiningCommittees.has(committee.id) ? 'Requesting...' : 'Request to join' }}
+          </button>
+        </ng-container>
+        <ng-template #isCreatorTemplate>
+          <span class="creator-badge-inline">You are creator</span>
+        </ng-template>
       </div>
     </article>
   </div>

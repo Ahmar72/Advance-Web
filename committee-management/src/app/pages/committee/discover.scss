@@ -286,6 +286,16 @@ h2 {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.creator-badge-inline {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #8a6a2b;
+  background: rgba(138, 106, 43, 0.1);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 106, 43, 0.2);
+}
+
 @media (max-width: 900px) {
   .hero-panel {
     flex-direction: column;

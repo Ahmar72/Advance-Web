@@ -1,4 +1,4 @@
-﻿import { CommonModule } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -26,6 +26,7 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
   error: string | null = null;
   currentUserId: string | null = null;
   isCreator = false;
+  isDeleting = false;
 
   memberForm = {
     full_name: '',
@@ -89,84 +90,34 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.error = null;
     try {
-      console.log('ðŸ”„ [Detail] Loading committee detail for id:', id);
+      console.log('🔄 [Detail] Loading committee detail for id:', id);
 
-      const committeeResult = await this.committeeService.getCommitteeById(id);
-      console.log('âœ… [Detail] getCommitteeById returned:', committeeResult.error ? 'ERROR' : 'DATA');
-      if (committeeResult.error) {
-        console.error('âŒ [Detail] getCommitteeById failed:', committeeResult.error);
-        this.error = committeeResult.error.message || 'Failed to load committee';
-        console.log('ðŸ“ [Detail] Exiting early due to error');
+      const { data, error } = await this.committeeService.getCommitteeDetail(id);
+      
+      if (error) {
+        console.error('❌ [Detail] getCommitteeDetail failed:', error);
+        this.error = error.message || 'Failed to load committee';
         return;
       }
 
-      const committee = committeeResult.data;
-      if (!committee) {
-        console.log('âŒ [Detail] Committee not found in database');
+      if (!data) {
         this.error = 'Committee not found.';
         return;
       }
 
-      console.log('âœ… [Detail] Committee found, fetching related data...');
-      const [membersResult, cyclesResult, paymentsResult, progressResult, creatorResult] = await Promise.all([
-        this.committeeService.getCommitteeMembers(id),
-        this.committeeService.getCommitteeCycles(id),
-        this.committeeService.getCommitteePayments(id),
-        this.committeeService.getCommitteeProgress(id),
-        committee.creator_id ? this.committeeService.getCreatorProfile(committee.creator_id) : Promise.resolve({ data: null, error: null }),
-      ]);
-      console.log('âœ… [Detail] All related queries completed');
-
-      const allMembers = membersResult.data || [];
-      const members = allMembers.filter((member) => !!member.user_id || member.is_creator);
-      const pendingMembers = allMembers.filter((member) => !member.user_id && member.other_payment_details?.request_type === 'join_request');
-      const pendingInvites = allMembers.filter((member) => !member.user_id && member.other_payment_details?.request_type === 'invite');
-      const cycles = cyclesResult.data || [];
-      const payments = paymentsResult.data || [];
-      const progress = progressResult.data;
-      const creatorProfile = creatorResult.data || null;
-      const creatorError = creatorResult.error;
-
-      if (membersResult.error || cyclesResult.error || paymentsResult.error || progressResult.error || creatorError) {
-        console.warn('âš ï¸ [Detail] Committee detail loaded with partial data');
-        this.error =
-          membersResult.error?.message ||
-          cyclesResult.error?.message ||
-          paymentsResult.error?.message ||
-          progressResult.error?.message ||
-          creatorError?.message ||
-          null;
-      }
-
-      const progressPercentage = Number(progress?.progress_percentage ?? 0);
-      const completedCycles = Number(progress?.completed_cycles ?? 0);
-      const nextRecipient = this.resolveNextRecipient(members, cycles);
-
-      this.committee = {
-        ...(committee as CommitteeRecord),
-        creator_profile: creatorProfile,
-        members,
-        pendingMembers,
-        pendingInvites,
-        cycles,
-        payments,
-        currentMembers: members.length,
-        completedCycles,
-        progressPercentage,
-        nextRecipient,
-      };
+      this.committee = data;
 
       this.cycleForm = {
-        cycle_number: cycles.length + 1,
+        cycle_number: data.cycles.length + 1,
         scheduled_date: '',
-        recipient_member_id: nextRecipient?.id || members[0]?.id || '',
+        recipient_member_id: data.nextRecipient?.id || data.members[0]?.id || '',
         status: 'pending',
       };
 
       this.paymentForm = {
-        cycle_id: cycles[0]?.id || '',
-        payer_member_id: members.find((member) => member.user_id === this.currentUserId)?.id || members[0]?.id || '',
-        amount: Number(this.committee.monthly_amount),
+        cycle_id: data.cycles[0]?.id || '',
+        payer_member_id: data.members.find((member) => member.user_id === this.currentUserId)?.id || data.members[0]?.id || '',
+        amount: Number(data.monthly_amount),
         payment_status: 'pending',
         reference: '',
         proof_url: '',
@@ -174,14 +125,13 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
       };
 
       this.refreshCreatorFlag();
-      console.log('âœ… [Detail] Committee detail loaded successfully');
+      console.log('✅ [Detail] Committee detail loaded successfully');
       this.cdr.markForCheck();
     } catch (err: any) {
       console.error('❌ [Detail] Unexpected error:', err);
       this.error = err?.message || 'Failed to load committee details';
       this.cdr.markForCheck();
     } finally {
-      console.log('✅ [Detail] Setting isLoading = false');
       this.isLoading = false;
       this.cdr.markForCheck();
     }
@@ -280,18 +230,34 @@ export class CommitteeDetailComponent implements OnInit, OnDestroy {
   }
 
   async deleteCommittee() {
-    if (!this.committee || !this.canManageCommittee) return;
+    if (!this.committee) {
+      console.warn('⚠️ [Detail] Delete attempted but no committee loaded');
+      return;
+    }
+    
+    console.log('🔄 [Detail] Delete requested. isCreator:', this.isCreator, 'canManage:', this.canManageCommittee);
+    console.log('📊 [Detail] CreatorID:', this.committee.creator_id, 'CurrentUserID:', this.currentUserId);
+
+    if (!this.canManageCommittee) {
+      this.error = 'You do not have permission to delete this committee.';
+      return;
+    }
 
     const confirmed = window.confirm(`Delete ${this.committee.title}? This cannot be undone.`);
     if (!confirmed) return;
 
-    const { error } = await this.committeeService.deleteCommittee(this.committee.id);
-    if (error) {
-      this.error = error.message || 'Failed to delete committee';
-      return;
+    this.isDeleting = true;
+    try {
+      const { error } = await this.committeeService.deleteCommittee(this.committee.id);
+      if (error) {
+        this.error = error.message || 'Failed to delete committee';
+      } else {
+        await this.router.navigate(['/dashboard']);
+      }
+    } finally {
+      this.isDeleting = false;
+      this.cdr.markForCheck();
     }
-
-    await this.router.navigate(['/dashboard']);
   }
 
   async addCycle() {

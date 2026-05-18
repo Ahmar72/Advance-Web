@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { RouterTestingModule } from '@angular/router/testing';
+import { Router, provideRouter, RouterLink } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { CommitteeCreateComponent } from './create';
 import { AuthService } from '../../services/auth.service';
@@ -19,13 +18,16 @@ describe('CommitteeCreateComponent', () => {
       data: { id: 'committee-1' },
       error: null,
     }),
-  } as Partial<CommitteeService>;
+    createdCommittee$: new BehaviorSubject(null),
+    committeeUpdated$: new BehaviorSubject(null),
+  } as any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     await TestBed.configureTestingModule({
-      imports: [CommonModule, CommitteeCreateComponent, RouterTestingModule],
+      imports: [CommonModule, CommitteeCreateComponent, RouterLink],
       providers: [
+        provideRouter([]),
         { provide: AuthService, useValue: authServiceStub },
         { provide: CommitteeService, useValue: committeeServiceStub },
       ],

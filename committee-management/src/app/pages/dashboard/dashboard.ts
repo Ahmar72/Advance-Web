@@ -32,6 +32,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.authUserSub = this.authService.currentUser$.subscribe((user) => {
+      if (user === null && this.authService.isAuthenticatedValue()) {
+        // Still initializing or mismatch, wait
+        return;
+      }
       if (!user) {
         this.router.navigate(['/login']);
       } else {
@@ -39,6 +43,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.isLoading = false;
         this.loadMyCommittees(user.id);
         this.watchCreatedCommittees(user.id);
+        this.cdr.detectChanges();
       }
     });
     this.authStateSub = this.authService.isAuthenticated$.subscribe((isAuthenticated) => {
@@ -120,6 +125,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     this.myCommittees = data || [];
+    this.cdr.detectChanges();
   }
 
   watchCreatedCommittees(userId: string) {
@@ -141,6 +147,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         reputation_score: 0,
         current_members: 1,
         created_at: committee.created_at || new Date().toISOString(),
+        creator_id: committee.creator_id,
         role: 'creator',
       };
 

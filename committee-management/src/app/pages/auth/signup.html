@@ -1,7 +1,8 @@
-<div class="signup-container">
-  <div class="signup-card">
-    <h1>Committee Management</h1>
-    <h2>Create Account</h2>
+<div class="auth-page">
+  <div class="auth-card">
+    <p class="eyebrow">Committee Management</p>
+    <h1>Create Account</h1>
+    <p class="card-copy">Set up your profile to manage committees, invites, and activity.</p>
 
     <form (ngSubmit)="onSubmit()">
       <div class="form-group">
@@ -59,16 +60,12 @@
         {{ success }}
       </div>
 
-      <button
-        type="submit"
-        [disabled]="isLoading"
-        class="submit-button"
-      >
+      <button type="submit" [disabled]="isLoading" class="submit-button">
         {{ isLoading ? 'Creating Account...' : 'Sign Up' }}
       </button>
     </form>
 
-    <p class="login-link">
+    <p class="auth-link">
       Already have an account?
       <a routerLink="/login">Sign In</a>
     </p>
