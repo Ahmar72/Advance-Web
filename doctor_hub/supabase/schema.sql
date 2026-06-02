@@ -32,6 +32,14 @@ create table if not exists clinics (
   created_at timestamptz default now()
 );
 
+create table if not exists assistants (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id),
+  assigned_doctor_id uuid references auth.users(id),
+  clinic_id uuid references clinics(id),
+  created_at timestamptz default now()
+);
+
 create table if not exists doctor_schedules (
   id uuid primary key default gen_random_uuid(),
   doctor_id uuid not null references auth.users(id),
@@ -81,6 +89,16 @@ create table if not exists medical_history (
   entry_type text not null,
   summary text not null,
   notes text,
+  created_at timestamptz default now()
+);
+
+create table if not exists patient_reports (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references auth.users(id),
+  appointment_id uuid references appointments(id),
+  file_path text not null,
+  file_url text not null,
+  description text,
   created_at timestamptz default now()
 );
 

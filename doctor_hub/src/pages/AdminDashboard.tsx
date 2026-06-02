@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { AdminClinicManager } from '../components/AdminClinicManager'
 import { AdminAnalyticsPanel } from '../components/AdminAnalyticsPanel'
 import { AdminUserManagement } from '../components/AdminUserManagement'
 import { DashboardShell } from '../components/DashboardShell'
@@ -106,6 +107,9 @@ export const AdminDashboard = () => {
       </Section>
       <Section id="admin-analytics">
         <AdminAnalyticsPanel />
+      </Section>
+      <Section id="admin-clinics">
+        <AdminClinicManager />
       </Section>
       <Section id="admin-doctors">
         <div className="card">

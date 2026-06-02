@@ -9,7 +9,11 @@ type DoctorRecord = {
   clinic_name: string
 }
 
-export const DoctorSearch = () => {
+type DoctorSearchProps = {
+  onSelectDoctor?: (doctorId: string) => void
+}
+
+export const DoctorSearch = ({ onSelectDoctor }: DoctorSearchProps) => {
   const [name, setName] = useState('')
   const [disease, setDisease] = useState('')
   const [treatment, setTreatment] = useState('all')
@@ -104,6 +108,15 @@ export const DoctorSearch = () => {
               {doctor.treatment_type} care | {doctor.disease_focus}
             </p>
             <p className="muted">Clinic: {doctor.clinic_name}</p>
+            {onSelectDoctor ? (
+              <button
+                className="btn btn-outline"
+                type="button"
+                onClick={() => onSelectDoctor(doctor.id)}
+              >
+                Use this doctor
+              </button>
+            ) : null}
           </div>
         ))}
       </div>

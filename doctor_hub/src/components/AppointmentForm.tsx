@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -8,20 +8,35 @@ type AppointmentFormState = {
   time: string
   notes: string
   paymentUrl: string
+  paymentAmount: string
 }
 
-export const AppointmentForm = () => {
+type AppointmentFormProps = {
+  selectedDoctorId?: string
+}
+
+const PAYMENT_BUCKET = 'payment-screenshots'
+
+export const AppointmentForm = ({ selectedDoctorId }: AppointmentFormProps) => {
   const { user } = useAuth()
   const [form, setForm] = useState<AppointmentFormState>({
-    doctorId: '',
+    doctorId: selectedDoctorId ?? '',
     date: '',
     time: '',
     notes: '',
     paymentUrl: '',
+    paymentAmount: '',
   })
+  const [paymentFile, setPaymentFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (selectedDoctorId && selectedDoctorId !== form.doctorId) {
+      setForm((prev) => ({ ...prev, doctorId: selectedDoctorId }))
+    }
+  }, [selectedDoctorId, form.doctorId])
 
   const handleChange = (
     key: keyof AppointmentFormState,
@@ -38,6 +53,12 @@ export const AppointmentForm = () => {
 
     if (!user) {
       setError('Please sign in again to book an appointment.')
+      setLoading(false)
+      return
+    }
+
+    if (!paymentFile && !form.paymentUrl.trim()) {
+      setError('Please upload a payment screenshot or provide its URL.')
       setLoading(false)
       return
     }
@@ -61,22 +82,51 @@ export const AppointmentForm = () => {
       return
     }
 
-    if (form.paymentUrl.trim()) {
-      const { error: paymentError } = await supabase.from('payments').insert({
-        appointment_id: appointment?.id,
-        screenshot_url: form.paymentUrl,
-        status: 'pending',
-      })
+    let screenshotUrl = form.paymentUrl.trim()
 
-      if (paymentError) {
-        setError(paymentError.message)
+    if (paymentFile) {
+      const safeName = paymentFile.name.replace(/\s+/g, '-')
+      const filePath = `${user.id}/${Date.now()}-${safeName}`
+      const { error: uploadError } = await supabase.storage
+        .from(PAYMENT_BUCKET)
+        .upload(filePath, paymentFile)
+
+      if (uploadError) {
+        setError(uploadError.message)
         setLoading(false)
         return
       }
+
+      const { data: publicUrl } = supabase.storage
+        .from(PAYMENT_BUCKET)
+        .getPublicUrl(filePath)
+
+      screenshotUrl = publicUrl.publicUrl
+    }
+
+    const { error: paymentError } = await supabase.from('payments').insert({
+      appointment_id: appointment?.id,
+      amount: form.paymentAmount ? Number(form.paymentAmount) : null,
+      screenshot_url: screenshotUrl,
+      status: 'pending',
+    })
+
+    if (paymentError) {
+      setError(paymentError.message)
+      setLoading(false)
+      return
     }
 
     setMessage('Appointment requested. Awaiting assistant verification.')
-    setForm({ doctorId: '', date: '', time: '', notes: '', paymentUrl: '' })
+    setForm({
+      doctorId: '',
+      date: '',
+      time: '',
+      notes: '',
+      paymentUrl: '',
+      paymentAmount: '',
+    })
+    setPaymentFile(null)
     setLoading(false)
   }
 
@@ -133,6 +183,27 @@ export const AppointmentForm = () => {
             value={form.paymentUrl}
             onChange={(event) => handleChange('paymentUrl', event.target.value)}
             placeholder="Upload to storage and paste URL"
+          />
+        </div>
+        <div className="form-row">
+          <label htmlFor="payment-file">Payment screenshot file</label>
+          <input
+            id="payment-file"
+            type="file"
+            onChange={(event) =>
+              setPaymentFile(event.target.files?.[0] ?? null)
+            }
+          />
+        </div>
+        <div className="form-row">
+          <label htmlFor="payment-amount">Payment amount (optional)</label>
+          <input
+            id="payment-amount"
+            type="number"
+            value={form.paymentAmount}
+            onChange={(event) =>
+              handleChange('paymentAmount', event.target.value)
+            }
           />
         </div>
         <button className="btn btn-primary" type="submit" disabled={loading}>

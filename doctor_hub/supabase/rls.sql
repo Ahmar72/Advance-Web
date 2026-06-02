@@ -14,11 +14,13 @@ $$;
 alter table users enable row level security;
 alter table doctors enable row level security;
 alter table patients enable row level security;
+alter table assistants enable row level security;
 alter table clinics enable row level security;
 alter table appointments enable row level security;
 alter table payments enable row level security;
 alter table prescriptions enable row level security;
 alter table medical_history enable row level security;
+alter table patient_reports enable row level security;
 alter table doctor_schedules enable row level security;
 alter table messages enable row level security;
 
@@ -65,6 +67,20 @@ create policy "patients_read_self" on patients
 create policy "patients_insert_self" on patients
   for insert
   with check (user_id = auth.uid());
+
+-- assistants
+create policy "assistants_admin_manage" on assistants
+  for all
+  using (current_user_role() in ('admin', 'super_admin'))
+  with check (current_user_role() in ('admin', 'super_admin'));
+
+create policy "assistants_self_read" on assistants
+  for select
+  using (user_id = auth.uid());
+
+create policy "assistants_doctor_read" on assistants
+  for select
+  using (assigned_doctor_id = auth.uid());
 
 -- clinics
 create policy "clinics_admin_manage" on clinics
@@ -174,9 +190,41 @@ create policy "history_patient_read" on medical_history
 
 create policy "history_doctor_read" on medical_history
   for select
-  using (doctor_id = auth.uid());
+  using (
+    doctor_id = auth.uid()
+    or exists (
+      select 1
+      from appointments a
+      where a.patient_id = medical_history.patient_id
+        and a.doctor_id = auth.uid()
+    )
+  );
 
 create policy "history_admin_read" on medical_history
+  for select
+  using (current_user_role() in ('admin', 'super_admin'));
+
+-- patient reports
+create policy "reports_patient_read" on patient_reports
+  for select
+  using (patient_id = auth.uid());
+
+create policy "reports_patient_insert" on patient_reports
+  for insert
+  with check (patient_id = auth.uid());
+
+create policy "reports_doctor_read" on patient_reports
+  for select
+  using (
+    exists (
+      select 1
+      from appointments a
+      where a.patient_id = patient_reports.patient_id
+        and a.doctor_id = auth.uid()
+    )
+  );
+
+create policy "reports_admin_read" on patient_reports
   for select
   using (current_user_role() in ('admin', 'super_admin'));
 

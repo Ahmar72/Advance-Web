@@ -20,6 +20,7 @@ const roleNav: Record<string, NavItem[]> = {
     { label: 'Dashboard', id: 'doctor-dashboard' },
     { label: 'Schedules', id: 'doctor-schedules' },
     { label: 'Prescriptions', id: 'doctor-prescriptions' },
+    { label: 'Patient records', id: 'doctor-records' },
     { label: 'Messages', id: 'doctor-messages' },
     { label: 'Profile', id: 'profile' },
   ],
@@ -32,6 +33,7 @@ const roleNav: Record<string, NavItem[]> = {
   admin: [
     { label: 'Dashboard', id: 'admin-dashboard' },
     { label: 'Analytics', id: 'admin-analytics' },
+    { label: 'Clinics', id: 'admin-clinics' },
     { label: 'Doctors', id: 'admin-doctors' },
     { label: 'Role management', id: 'admin-users' },
     { label: 'Profile', id: 'profile' },

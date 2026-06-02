@@ -1,4 +1,5 @@
 import { DashboardShell } from '../components/DashboardShell'
+import { DoctorPatientRecords } from '../components/DoctorPatientRecords'
 import { DoctorScheduleManager } from '../components/DoctorScheduleManager'
 import { MessageCenter } from '../components/MessageCenter'
 import { PrescriptionForm } from '../components/PrescriptionForm'
@@ -21,6 +22,16 @@ export const DoctorDashboard = () => (
           <div className="list-item">Communicate with patients securely.</div>
         </div>
       </div>
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-header">
+          <h2>Prescription policy</h2>
+          <span className="badge">Immutable</span>
+        </div>
+        <p className="muted">
+          Once saved, prescriptions and history entries cannot be edited or
+          removed. Add follow-up notes as new records instead.
+        </p>
+      </div>
     </Section>
     <Section id="doctor-schedules">
       <DoctorScheduleManager />
@@ -28,21 +39,14 @@ export const DoctorDashboard = () => (
     <Section id="doctor-prescriptions">
       <PrescriptionForm />
     </Section>
+    <Section id="doctor-records">
+      <DoctorPatientRecords />
+    </Section>
     <Section id="doctor-messages">
       <MessageCenter
         title="Patient communication"
         subtitle="Share updates, questions, and follow-ups securely."
       />
     </Section>
-    <div className="card" style={{ marginTop: '20px' }}>
-      <div className="card-header">
-        <h2>Prescription policy</h2>
-        <span className="badge">Immutable</span>
-      </div>
-      <p className="muted">
-        Once saved, prescriptions and history entries cannot be edited or
-        removed. Add follow-up notes as new records instead.
-      </p>
-    </div>
   </DashboardShell>
 )
