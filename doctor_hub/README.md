@@ -1,7 +1,7 @@
 # Doctor Hub
 
 Doctor Hub is a healthcare consultation and patient history management system built with React (Vite) and Supabase. The app supports separate dashboards for Patient, Doctor, Assistant, Admin, and Super Admin roles.
-[text](../../../images)
+![alt text](../../../images/1.png)
 ## Core Features
 
 - Doctor search by disease and treatment type
