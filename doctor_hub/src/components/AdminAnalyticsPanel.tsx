@@ -23,9 +23,11 @@ export const AdminAnalyticsPanel = () => {
     messages: 0,
     scheduleSlots: 0,
   })
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadCounts = async () => {
+    setLoading(true)
     setError(null)
 
     const [pendingAppointments, confirmedAppointments, pendingPayments, verifiedPayments, prescriptions, historyEntries, messages, scheduleSlots] =
@@ -68,6 +70,7 @@ export const AdminAnalyticsPanel = () => {
 
     if (errorMessage) {
       setError(errorMessage)
+      setLoading(false)
       return
     }
 
@@ -81,6 +84,7 @@ export const AdminAnalyticsPanel = () => {
       messages: messages.count ?? 0,
       scheduleSlots: scheduleSlots.count ?? 0,
     })
+    setLoading(false)
   }
 
   useEffect(() => {
@@ -91,7 +95,17 @@ export const AdminAnalyticsPanel = () => {
     <div className="card">
       <div className="card-header">
         <h2>Operations analytics</h2>
-        <span className="badge">Live metrics</span>
+        <div>
+          <span className="badge">Live metrics</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadCounts}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
       {error && <div className="alert">{error}</div>}
       <div className="list">

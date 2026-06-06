@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiRequest } from '../lib/apiClient'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -33,36 +34,33 @@ export const PatientHistory = () => {
     setLoading(true)
     setError(null)
 
-    const [historyResult, prescriptionResult] = await Promise.all([
-      supabase
-        .from('medical_history')
-        .select('id, entry_type, summary, notes, doctor_id, created_at')
-        .eq('patient_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('prescriptions')
-        .select(
-          'id, appointment_id, diagnosis, medications, instructions, doctor_id, created_at',
-        )
-        .eq('patient_id', user.id)
-        .order('created_at', { ascending: false }),
-    ])
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession()
 
-    if (historyResult.error) {
-      setError(historyResult.error.message)
+    if (sessionError || !sessionData.session?.access_token) {
+      setError('Please sign in again to load history.')
       setHistory([])
       setPrescriptions([])
       setLoading(false)
       return
     }
 
-    if (prescriptionResult.error) {
-      setError(prescriptionResult.error.message)
+    try {
+      const response = await apiRequest<{
+        history: HistoryRecord[]
+        prescriptions: PrescriptionRecord[]
+      }>('/api/history', {
+        token: sessionData.session.access_token,
+      })
+
+      setHistory(response.history ?? [])
+      setPrescriptions(response.prescriptions ?? [])
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Request failed.'
+      setError(message)
+      setHistory([])
       setPrescriptions([])
     }
-
-    setHistory(historyResult.data ?? [])
-    setPrescriptions(prescriptionResult.data ?? [])
     setLoading(false)
   }
 

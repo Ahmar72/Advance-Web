@@ -78,6 +78,9 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   fullName: z.string().min(1).max(160).optional(),
+  role: z
+    .enum(['patient', 'doctor', 'assistant', 'admin', 'super_admin'])
+    .optional(),
 })
 
 app.post('/api/auth/register', async (req, res) => {
@@ -88,7 +91,7 @@ app.post('/api/auth/register', async (req, res) => {
     return
   }
 
-  const { email, password, fullName } = parsed.data
+  const { email, password, fullName, role } = parsed.data
 
   const { data, error } = await anonClient.auth.signUp({
     email,
@@ -96,7 +99,7 @@ app.post('/api/auth/register', async (req, res) => {
     options: {
       data: {
         full_name: fullName ?? null,
-        role: 'patient',
+        role: role ?? 'patient',
       },
     },
   })
@@ -110,7 +113,7 @@ app.post('/api/auth/register', async (req, res) => {
     await serviceClient.from('users').upsert({
       id: data.user.id,
       full_name: fullName ?? null,
-      role: 'patient',
+      role: role ?? 'patient',
     })
   }
 

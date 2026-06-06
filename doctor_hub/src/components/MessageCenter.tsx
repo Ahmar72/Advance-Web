@@ -95,10 +95,23 @@ export const MessageCenter = ({ title, subtitle }: MessageCenterProps) => {
     <div className="card">
       <div className="card-header">
         <h2>{title}</h2>
-        <span className="badge">Messaging</span>
+        <div>
+          <span className="badge">Messaging</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadMessages}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
       <p className="muted" style={{ marginBottom: '12px' }}>
         {subtitle}
+      </p>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Use the receiver's user ID from appointments or the user list.
       </p>
       {loading ? (
         <p className="muted">Loading messages...</p>
@@ -112,6 +125,10 @@ export const MessageCenter = ({ title, subtitle }: MessageCenterProps) => {
                 <strong>{item.body}</strong>
                 <p className="muted">
                   From: {item.sender_id} | To: {item.receiver_id}
+                </p>
+                <p className="muted">
+                  {item.sender_id === user?.id ? 'Sent' : 'Received'} |{' '}
+                  {new Date(item.created_at).toLocaleString()}
                 </p>
                 {item.appointment_id && (
                   <p className="muted">

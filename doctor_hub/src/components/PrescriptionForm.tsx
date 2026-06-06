@@ -27,6 +27,16 @@ export const PrescriptionForm = () => {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const resetForm = () => {
+    setForm({
+      appointmentId: '',
+      patientId: '',
+      diagnosis: '',
+      medications: '',
+      instructions: '',
+    })
+  }
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setLoading(true)
@@ -89,6 +99,10 @@ export const PrescriptionForm = () => {
         <h2>New prescription</h2>
         <span className="badge">Immutable records</span>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Use the appointment ID from the confirmed booking and the patient user
+        ID from the appointment list.
+      </p>
       <form className="form" onSubmit={handleSubmit}>
         <div className="form-row">
           <label htmlFor="appt-id">Appointment ID</label>
@@ -135,9 +149,14 @@ export const PrescriptionForm = () => {
             placeholder="Lifestyle guidance, follow-up schedule"
           />
         </div>
-        <button className="btn btn-primary" type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Save prescription'}
-        </button>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? 'Saving...' : 'Save prescription'}
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={resetForm}>
+            Reset form
+          </button>
+        </div>
         {error && <div className="alert">{error}</div>}
         {message && <div className="notice">{message}</div>}
       </form>

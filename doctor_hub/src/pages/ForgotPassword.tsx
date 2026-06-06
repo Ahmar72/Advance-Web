@@ -32,6 +32,10 @@ export const ForgotPassword = () => {
           <h1>Reset password</h1>
           <p className="muted">We will send a secure reset link.</p>
         </div>
+        <p className="muted" style={{ marginBottom: '16px' }}>
+          If you do not receive the email, check spam or try again in a few
+          minutes.
+        </p>
         <form className="form" onSubmit={handleSubmit}>
           <div className="form-row">
             <label htmlFor="reset-email">Email</label>

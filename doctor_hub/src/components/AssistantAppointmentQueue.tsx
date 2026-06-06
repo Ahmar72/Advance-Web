@@ -21,6 +21,7 @@ export const AssistantAppointmentQueue = () => {
   const [paymentMap, setPaymentMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   const loadAppointments = async () => {
     setLoading(true)
@@ -73,6 +74,7 @@ export const AssistantAppointmentQueue = () => {
   }, [])
 
   const confirmAppointment = async (appointmentId: string) => {
+    setUpdatingId(appointmentId)
     const { error: updateError } = await supabase
       .from('appointments')
       .update({ status: 'confirmed' })
@@ -80,18 +82,33 @@ export const AssistantAppointmentQueue = () => {
 
     if (updateError) {
       setError(updateError.message)
+      setUpdatingId(null)
       return
     }
 
     await loadAppointments()
+    setUpdatingId(null)
   }
 
   return (
     <div className="card">
       <div className="card-header">
         <h2>Confirm appointments</h2>
-        <span className="badge">Assistant queue</span>
+        <div>
+          <span className="badge">Assistant queue</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadAppointments}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Appointments can be confirmed after payment is verified.
+      </p>
       {error && <div className="alert">{error}</div>}
       {loading ? (
         <p className="muted">Loading pending appointments...</p>
@@ -116,9 +133,13 @@ export const AssistantAppointmentQueue = () => {
                     className="btn btn-primary"
                     type="button"
                     onClick={() => confirmAppointment(appointment.id)}
-                    disabled={!canConfirm}
+                    disabled={!canConfirm || updatingId === appointment.id}
                   >
-                    {canConfirm ? 'Confirm appointment' : 'Await payment'}
+                    {updatingId === appointment.id
+                      ? 'Confirming...'
+                      : canConfirm
+                        ? 'Confirm appointment'
+                        : 'Await payment'}
                   </button>
                 </div>
               )

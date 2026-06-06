@@ -120,10 +120,23 @@ export const PatientReportUpload = () => {
     <div className="card">
       <div className="card-header">
         <h2>Upload reports</h2>
-        <span className="badge">Patient reports</span>
+        <div>
+          <span className="badge">Patient reports</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadReports}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
       <p className="muted" style={{ marginBottom: '12px' }}>
         Reports are stored in the {REPORT_BUCKET} storage bucket.
+      </p>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Upload PDFs or images to share with your doctor.
       </p>
       <form className="form" onSubmit={handleSubmit}>
         <div className="form-row">
@@ -131,6 +144,7 @@ export const PatientReportUpload = () => {
           <input
             id="report-file"
             type="file"
+            accept="image/*,.pdf"
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             required
           />
@@ -168,7 +182,11 @@ export const PatientReportUpload = () => {
             reports.map((report) => (
               <div key={report.id} className="list-item">
                 <strong>Report</strong>
-                <p className="muted">{report.file_url}</p>
+                <p className="muted">
+                  <a href={report.file_url} target="_blank" rel="noreferrer">
+                    Open report
+                  </a>
+                </p>
                 {report.description && (
                   <p className="muted">Notes: {report.description}</p>
                 )}

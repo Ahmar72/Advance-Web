@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { apiRequest } from '../lib/apiClient'
 
 type DoctorRecord = {
   id: string
@@ -26,28 +26,22 @@ export const DoctorSearch = ({ onSelectDoctor }: DoctorSearchProps) => {
     setLoading(true)
     setError(null)
 
-    let query = supabase
-      .from('doctors')
-      .select('id, full_name, treatment_type, disease_focus, clinic_name')
-      .order('full_name', { ascending: true })
-
-    if (name.trim()) {
-      query = query.ilike('full_name', `%${name.trim()}%`)
-    }
-    if (disease.trim()) {
-      query = query.ilike('disease_focus', `%${disease.trim()}%`)
-    }
-    if (treatment !== 'all') {
-      query = query.eq('treatment_type', treatment)
-    }
-
-    const { data, error: queryError } = await query
-
-    if (queryError) {
-      setError(queryError.message)
+    try {
+      const response = await apiRequest<{ doctors: DoctorRecord[] }>(
+        '/api/doctors',
+        {
+          params: {
+            name: name.trim(),
+            disease: disease.trim(),
+            treatment,
+          },
+        },
+      )
+      setResults(response.doctors ?? [])
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Search failed.'
+      setError(message)
       setResults([])
-    } else {
-      setResults(data ?? [])
     }
 
     setLoading(false)
@@ -59,6 +53,9 @@ export const DoctorSearch = ({ onSelectDoctor }: DoctorSearchProps) => {
         <h2>Doctor search</h2>
         <span className="badge">Filter by disease + treatment</span>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Tip: click "Use this doctor" to auto-fill the appointment form.
+      </p>
       <form className="form" onSubmit={handleSearch}>
         <div className="form-row">
           <label htmlFor="doctor-name">Doctor name</label>

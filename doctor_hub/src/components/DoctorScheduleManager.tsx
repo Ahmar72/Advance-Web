@@ -46,6 +46,7 @@ export const DoctorScheduleManager = () => {
     notes: '',
   })
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -90,9 +91,11 @@ export const DoctorScheduleManager = () => {
     event.preventDefault()
     setError(null)
     setMessage(null)
+    setSaving(true)
 
     if (!user) {
       setError('Please sign in again to update schedules.')
+      setSaving(false)
       return
     }
 
@@ -109,6 +112,7 @@ export const DoctorScheduleManager = () => {
 
     if (insertError) {
       setError(insertError.message)
+      setSaving(false)
       return
     }
 
@@ -121,14 +125,28 @@ export const DoctorScheduleManager = () => {
       notes: '',
     })
     await loadData()
+    setSaving(false)
   }
 
   return (
     <div className="card">
       <div className="card-header">
         <h2>Clinic schedules</h2>
-        <span className="badge">Doctor-managed</span>
+        <div>
+          <span className="badge">Doctor-managed</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadData}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Add availability slots for each clinic to help assistants coordinate.
+      </p>
       {loading ? (
         <p className="muted">Loading schedules...</p>
       ) : (
@@ -136,18 +154,25 @@ export const DoctorScheduleManager = () => {
           {schedules.length === 0 ? (
             <div className="list-item muted">No schedules yet.</div>
           ) : (
-            schedules.map((slot) => (
-              <div key={slot.id} className="list-item">
-                <strong>{slot.day_of_week}</strong>
-                <p className="muted">
-                  {slot.start_time} - {slot.end_time}
-                </p>
-                {slot.clinic_id && (
-                  <p className="muted">Clinic ID: {slot.clinic_id}</p>
-                )}
-                {slot.notes && <p className="muted">Notes: {slot.notes}</p>}
-              </div>
-            ))
+            schedules.map((slot) => {
+              const clinicName = clinics.find(
+                (clinic) => clinic.id === slot.clinic_id,
+              )?.name
+              return (
+                <div key={slot.id} className="list-item">
+                  <strong>{slot.day_of_week}</strong>
+                  <p className="muted">
+                    {slot.start_time} - {slot.end_time}
+                  </p>
+                  {slot.clinic_id && (
+                    <p className="muted">
+                      Clinic: {clinicName ?? slot.clinic_id}
+                    </p>
+                  )}
+                  {slot.notes && <p className="muted">Notes: {slot.notes}</p>}
+                </div>
+              )
+            })
           )}
         </div>
       )}
@@ -210,8 +235,8 @@ export const DoctorScheduleManager = () => {
             placeholder="Telehealth, walk-ins, etc."
           />
         </div>
-        <button className="btn btn-primary" type="submit">
-          Add schedule
+        <button className="btn btn-primary" type="submit" disabled={saving}>
+          {saving ? 'Adding...' : 'Add schedule'}
         </button>
         {error && <div className="alert">{error}</div>}
         {message && <div className="notice">{message}</div>}

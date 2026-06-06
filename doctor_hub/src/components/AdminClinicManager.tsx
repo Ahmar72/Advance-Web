@@ -16,6 +16,7 @@ export const AdminClinicManager = () => {
   const [clinics, setClinics] = useState<ClinicRecord[]>([])
   const [form, setForm] = useState<ClinicForm>({ name: '', address: '' })
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,6 +51,7 @@ export const AdminClinicManager = () => {
     event.preventDefault()
     setMessage(null)
     setError(null)
+    setSaving(true)
 
     const { error: insertError } = await supabase.from('clinics').insert({
       name: form.name,
@@ -58,20 +60,35 @@ export const AdminClinicManager = () => {
 
     if (insertError) {
       setError(insertError.message)
+      setSaving(false)
       return
     }
 
     setMessage('Clinic added.')
     setForm({ name: '', address: '' })
     await loadClinics()
+    setSaving(false)
   }
 
   return (
     <div className="card">
       <div className="card-header">
         <h2>Clinics</h2>
-        <span className="badge">Admin setup</span>
+        <div>
+          <span className="badge">Admin setup</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadClinics}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Add clinics so doctors can attach schedules to a location.
+      </p>
       {loading ? (
         <p className="muted">Loading clinics...</p>
       ) : (
@@ -107,8 +124,8 @@ export const AdminClinicManager = () => {
             required
           />
         </div>
-        <button className="btn btn-primary" type="submit">
-          Add clinic
+        <button className="btn btn-primary" type="submit" disabled={saving}>
+          {saving ? 'Adding...' : 'Add clinic'}
         </button>
         {error && <div className="alert">{error}</div>}
         {message && <div className="notice">{message}</div>}

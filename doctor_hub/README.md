@@ -1,7 +1,7 @@
 # Doctor Hub
 
 Doctor Hub is a healthcare consultation and patient history management system built with React (Vite) and Supabase. The app supports separate dashboards for Patient, Doctor, Assistant, Admin, and Super Admin roles.
-
+[text](../../../images)
 ## Core Features
 
 - Doctor search by disease and treatment type
@@ -25,6 +25,7 @@ Create a `.env` file in the project root (copy from `.env.example`):
 ```
 VITE_SUPABASE_URL=your-supabase-url
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_API_URL=http://localhost:5050
 ```
 
 Create a `.env` file inside `server/` (copy from `server/.env.example`):
@@ -58,6 +59,13 @@ npm run dev
 cd server
 npm install
 npm run dev
+```
+
+Health check:
+
+```
+cd server
+npm run health
 ```
 
 Available REST endpoints:

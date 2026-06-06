@@ -15,9 +15,11 @@ export const SuperAdminInsights = () => {
     usersByRole: {},
     totalUsers: 0,
   })
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadStats = async () => {
+    setLoading(true)
     setError(null)
 
     const { data, error: queryError } = await supabase
@@ -26,6 +28,7 @@ export const SuperAdminInsights = () => {
 
     if (queryError) {
       setError(queryError.message)
+      setLoading(false)
       return
     }
 
@@ -45,6 +48,7 @@ export const SuperAdminInsights = () => {
       usersByRole: counts,
       totalUsers: data?.length ?? 0,
     })
+    setLoading(false)
   }
 
   useEffect(() => {
@@ -55,7 +59,17 @@ export const SuperAdminInsights = () => {
     <div className="card">
       <div className="card-header">
         <h2>Role distribution</h2>
-        <span className="badge">Super admin</span>
+        <div>
+          <span className="badge">Super admin</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadStats}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
       {error && <div className="alert">{error}</div>}
       <div className="list">

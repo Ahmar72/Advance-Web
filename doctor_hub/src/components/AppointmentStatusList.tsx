@@ -79,22 +79,37 @@ export const AppointmentStatusList = () => {
     <div className="card">
       <div className="card-header">
         <h2>Appointment status</h2>
-        <span className="badge">Tracking</span>
+        <div>
+          <span className="badge">Tracking</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadAppointments}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Track payment verification and confirmation progress here.
+      </p>
       {error && <div className="alert">{error}</div>}
       {loading ? (
         <p className="muted">Loading appointments...</p>
       ) : (
         <div className="list">
           {appointments.length === 0 ? (
-            <div className="list-item muted">No appointments yet.</div>
+            <div className="list-item muted">
+              No appointments yet. Book one from the Appointments section.
+            </div>
           ) : (
             appointments.map((appointment) => (
               <div key={appointment.id} className="list-item">
                 <strong>{appointment.appointment_date}</strong>
                 <p className="muted">
                   Time: {appointment.appointment_time} | Status:{' '}
-                  {appointment.status}
+                  {appointment.status.replace('_', ' ')}
                 </p>
                 <p className="muted">Doctor ID: {appointment.doctor_id}</p>
                 <p className="muted">

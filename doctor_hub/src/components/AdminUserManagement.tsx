@@ -73,8 +73,21 @@ export const AdminUserManagement = () => {
     <div className="card">
       <div className="card-header">
         <h2>User access</h2>
-        <span className="badge">Admin controls</span>
+        <div>
+          <span className="badge">Admin controls</span>{' '}
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={loadUsers}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Copy a user ID from the list below to update their role.
+      </p>
       {loading ? (
         <p className="muted">Loading users...</p>
       ) : (

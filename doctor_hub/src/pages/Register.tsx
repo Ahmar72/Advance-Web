@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { apiRequest } from '../lib/apiClient'
 import { supabase } from '../lib/supabaseClient'
 
 export const Register = () => {
@@ -18,22 +19,29 @@ export const Register = () => {
     setMessage(null)
     setLoading(true)
 
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          role,
-        },
-      },
-    })
+    try {
+      const response = await apiRequest<{
+        session?: { access_token: string; refresh_token: string } | null
+        message?: string
+      }>('/api/auth/register', {
+        method: 'POST',
+        body: { email, password, fullName, role },
+      })
 
-    if (signUpError) {
-      setError(signUpError.message)
-    } else {
-      setMessage('Account created. Check your email to confirm access.')
+      if (response.session?.access_token && response.session.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: response.session.access_token,
+          refresh_token: response.session.refresh_token,
+        })
+      }
+
+      setMessage(
+        response.message ?? 'Account created. Check your email to confirm access.',
+      )
       setTimeout(() => navigate('/login'), 1200)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Registration failed.'
+      setError(message)
     }
 
     setLoading(false)
@@ -46,6 +54,10 @@ export const Register = () => {
           <h1>Create account</h1>
           <p className="muted">Pick the role you need and set up access.</p>
         </div>
+        <p className="muted" style={{ marginBottom: '16px' }}>
+          Roles control which dashboard you can access. Admins can update roles
+          later if needed.
+        </p>
         <form className="form" onSubmit={handleSubmit}>
           <div className="form-row">
             <label htmlFor="register-name">Full name</label>

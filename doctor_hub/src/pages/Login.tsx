@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { apiRequest } from '../lib/apiClient'
 import { supabase } from '../lib/supabaseClient'
 
 export const Login = () => {
@@ -14,15 +15,25 @@ export const Login = () => {
     setError(null)
     setLoading(true)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const response = await apiRequest<{
+        session?: { access_token: string; refresh_token: string } | null
+      }>('/api/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      })
 
-    if (signInError) {
-      setError(signInError.message)
-    } else {
+      if (response.session?.access_token && response.session.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: response.session.access_token,
+          refresh_token: response.session.refresh_token,
+        })
+      }
+
       navigate('/')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Login failed.'
+      setError(message)
     }
 
     setLoading(false)
@@ -35,6 +46,9 @@ export const Login = () => {
           <h1>Welcome back</h1>
           <p className="muted">Sign in to manage your Doctor Hub workflow.</p>
         </div>
+        <p className="muted" style={{ marginBottom: '16px' }}>
+          Use the same email you registered with to access your role dashboard.
+        </p>
         <form className="form" onSubmit={handleSubmit}>
           <div className="form-row">
             <label htmlFor="login-email">Email</label>

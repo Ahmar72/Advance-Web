@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { apiRequest } from '../lib/apiClient'
 import { supabase } from '../lib/supabaseClient'
 
 type HistoryRecord = {
@@ -41,33 +42,11 @@ export const DoctorPatientRecords = () => {
     setLoading(true)
     setError(null)
 
-    const [historyResult, prescriptionResult, reportResult] = await Promise.all([
-      supabase
-        .from('medical_history')
-        .select('id, entry_type, summary, notes, doctor_id, created_at')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('prescriptions')
-        .select(
-          'id, appointment_id, diagnosis, medications, instructions, doctor_id, created_at',
-        )
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('patient_reports')
-        .select('id, appointment_id, file_url, description, created_at')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false }),
-    ])
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession()
 
-    const errorMessage =
-      historyResult.error?.message ||
-      prescriptionResult.error?.message ||
-      reportResult.error?.message
-
-    if (errorMessage) {
-      setError(errorMessage)
+    if (sessionError || !sessionData.session?.access_token) {
+      setError('Please sign in again to load records.')
       setHistory([])
       setPrescriptions([])
       setReports([])
@@ -75,9 +54,28 @@ export const DoctorPatientRecords = () => {
       return
     }
 
-    setHistory(historyResult.data ?? [])
-    setPrescriptions(prescriptionResult.data ?? [])
-    setReports(reportResult.data ?? [])
+    try {
+      const response = await apiRequest<{
+        history: HistoryRecord[]
+        prescriptions: PrescriptionRecord[]
+        reports: ReportRecord[]
+      }>('/api/history', {
+        token: sessionData.session.access_token,
+        params: { patientId: patientId.trim() },
+      })
+
+      setHistory(response.history ?? [])
+      setPrescriptions(response.prescriptions ?? [])
+      setReports(response.reports ?? [])
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Request failed.'
+      setError(message)
+      setHistory([])
+      setPrescriptions([])
+      setReports([])
+      setLoading(false)
+      return
+    }
     setLoading(false)
   }
 
@@ -87,6 +85,9 @@ export const DoctorPatientRecords = () => {
         <h2>Patient records</h2>
         <span className="badge">History + reports</span>
       </div>
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Enter the patient user ID from a confirmed appointment.
+      </p>
       <form className="form" onSubmit={handleSearch}>
         <div className="form-row">
           <label htmlFor="patient-records-id">Patient user ID</label>
@@ -104,60 +105,85 @@ export const DoctorPatientRecords = () => {
       </form>
 
       {!loading ? (
-        <div className="list" style={{ marginTop: '16px' }}>
-          <div className="list-item">
-            <strong>History entries</strong>
-            {history.length === 0 ? (
-              <p className="muted">No history entries found.</p>
-            ) : (
-              history.map((entry) => (
-                <div key={entry.id} className="list-item">
-                  <strong>{entry.summary}</strong>
-                  <p className="muted">
-                    Type: {entry.entry_type} | Doctor: {entry.doctor_id}
-                  </p>
-                  {entry.notes && <p className="muted">Notes: {entry.notes}</p>}
-                </div>
-              ))
-            )}
+        <div style={{ marginTop: '16px' }}>
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div className="card-header">
+              <h3>History entries</h3>
+              <span className="badge">Read-only</span>
+            </div>
+            <div className="list">
+              {history.length === 0 ? (
+                <div className="list-item muted">No history entries found.</div>
+              ) : (
+                history.map((entry) => (
+                  <div key={entry.id} className="list-item">
+                    <strong>{entry.summary}</strong>
+                    <p className="muted">
+                      Type: {entry.entry_type} | Doctor: {entry.doctor_id}
+                    </p>
+                    {entry.notes && <p className="muted">Notes: {entry.notes}</p>}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <div className="list-item">
-            <strong>Prescriptions</strong>
-            {prescriptions.length === 0 ? (
-              <p className="muted">No prescriptions found.</p>
-            ) : (
-              prescriptions.map((rx) => (
-                <div key={rx.id} className="list-item">
-                  <strong>{rx.diagnosis}</strong>
-                  <p className="muted">Doctor: {rx.doctor_id}</p>
-                  {rx.medications && (
-                    <p className="muted">Meds: {rx.medications}</p>
-                  )}
-                  {rx.instructions && (
-                    <p className="muted">Instructions: {rx.instructions}</p>
-                  )}
-                </div>
-              ))
-            )}
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div className="card-header">
+              <h3>Prescriptions</h3>
+              <span className="badge">Immutable</span>
+            </div>
+            <div className="list">
+              {prescriptions.length === 0 ? (
+                <div className="list-item muted">No prescriptions found.</div>
+              ) : (
+                prescriptions.map((rx) => (
+                  <div key={rx.id} className="list-item">
+                    <strong>{rx.diagnosis}</strong>
+                    <p className="muted">Doctor: {rx.doctor_id}</p>
+                    {rx.medications && (
+                      <p className="muted">Meds: {rx.medications}</p>
+                    )}
+                    {rx.instructions && (
+                      <p className="muted">Instructions: {rx.instructions}</p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <div className="list-item">
-            <strong>Patient reports</strong>
-            {reports.length === 0 ? (
-              <p className="muted">No reports found.</p>
-            ) : (
-              reports.map((report) => (
-                <div key={report.id} className="list-item">
-                  <strong>Report</strong>
-                  <p className="muted">{report.file_url}</p>
-                  {report.description && (
-                    <p className="muted">Notes: {report.description}</p>
-                  )}
-                  {report.appointment_id && (
-                    <p className="muted">Appointment: {report.appointment_id}</p>
-                  )}
-                </div>
-              ))
-            )}
+          <div className="card">
+            <div className="card-header">
+              <h3>Patient reports</h3>
+              <span className="badge">Uploads</span>
+            </div>
+            <div className="list">
+              {reports.length === 0 ? (
+                <div className="list-item muted">No reports found.</div>
+              ) : (
+                reports.map((report) => (
+                  <div key={report.id} className="list-item">
+                    <strong>Report</strong>
+                    <p className="muted">
+                      <a
+                        href={report.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open report
+                      </a>
+                    </p>
+                    {report.description && (
+                      <p className="muted">Notes: {report.description}</p>
+                    )}
+                    {report.appointment_id && (
+                      <p className="muted">
+                        Appointment: {report.appointment_id}
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       ) : null}

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { apiRequest } from '../lib/apiClient'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -63,25 +64,6 @@ export const AppointmentForm = ({ selectedDoctorId }: AppointmentFormProps) => {
       return
     }
 
-    const { data: appointment, error: appointmentError } = await supabase
-      .from('appointments')
-      .insert({
-        patient_id: user.id,
-        doctor_id: form.doctorId,
-        appointment_date: form.date,
-        appointment_time: form.time,
-        status: 'pending',
-        notes: form.notes,
-      })
-      .select('id')
-      .single()
-
-    if (appointmentError) {
-      setError(appointmentError.message)
-      setLoading(false)
-      return
-    }
-
     let screenshotUrl = form.paymentUrl.trim()
 
     if (paymentFile) {
@@ -104,15 +86,33 @@ export const AppointmentForm = ({ selectedDoctorId }: AppointmentFormProps) => {
       screenshotUrl = publicUrl.publicUrl
     }
 
-    const { error: paymentError } = await supabase.from('payments').insert({
-      appointment_id: appointment?.id,
-      amount: form.paymentAmount ? Number(form.paymentAmount) : null,
-      screenshot_url: screenshotUrl,
-      status: 'pending',
-    })
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession()
 
-    if (paymentError) {
-      setError(paymentError.message)
+    if (sessionError || !sessionData.session?.access_token) {
+      setError('Please sign in again to submit the appointment.')
+      setLoading(false)
+      return
+    }
+
+    try {
+      await apiRequest('/api/appointments', {
+        method: 'POST',
+        token: sessionData.session.access_token,
+        body: {
+          doctorId: form.doctorId,
+          appointmentDate: form.date,
+          appointmentTime: form.time,
+          notes: form.notes || undefined,
+          paymentUrl: screenshotUrl,
+          paymentAmount: form.paymentAmount
+            ? Number(form.paymentAmount)
+            : undefined,
+        },
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Request failed.'
+      setError(message)
       setLoading(false)
       return
     }
@@ -136,6 +136,15 @@ export const AppointmentForm = ({ selectedDoctorId }: AppointmentFormProps) => {
         <h2>Book appointment</h2>
         <span className="badge">Payment proof required</span>
       </div>
+      {selectedDoctorId ? (
+        <p className="muted" style={{ marginBottom: '12px' }}>
+          Selected doctor ID: {selectedDoctorId}
+        </p>
+      ) : null}
+      <p className="muted" style={{ marginBottom: '12px' }}>
+        Choose a doctor from search or paste the doctor ID, then attach a
+        payment screenshot (file or URL).
+      </p>
       <form className="form" onSubmit={handleSubmit}>
         <div className="form-row">
           <label htmlFor="doctor-id">Doctor ID</label>
