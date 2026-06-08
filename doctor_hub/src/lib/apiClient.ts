@@ -7,7 +7,13 @@ type ApiRequestOptions = {
 
 const resolveApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL as string | undefined
-  return envUrl && envUrl.trim() ? envUrl : 'http://localhost:5050'
+  if (envUrl && envUrl.trim()) {
+    return envUrl
+  }
+  if (typeof window !== 'undefined') {
+    return window.location.origin
+  }
+  return 'http://localhost:5050'
 }
 
 const buildUrl = (path: string, params?: Record<string, string>) => {

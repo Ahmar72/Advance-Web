@@ -337,6 +337,10 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: err.message })
 })
 
-app.listen(PORT, () => {
-  console.log(`Doctor Hub API running on port ${PORT}`)
-})
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Doctor Hub API running on port ${PORT}`)
+  })
+}
+
+export default app
